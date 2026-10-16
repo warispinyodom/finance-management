@@ -1,0 +1,228 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<!-- 1. ส่วนสรุปยอดเงินคงเหลือ (Responsive Summary Cards) -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-md-4">
+        <div class="summary-card bg-success text-white shadow-sm">
+            <div class="small text-uppercase opacity-75 fw-medium">รายรับรวม</div>
+            <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(total_income) }}</div>
+            <i class="fa-solid fa-arrow-trend-up icon-bg"></i>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-md-4">
+        <div class="summary-card bg-danger text-white shadow-sm">
+            <div class="small text-uppercase opacity-75 fw-medium">รายจ่ายรวม</div>
+            <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(total_expense) }}</div>
+            <i class="fa-solid fa-arrow-trend-down icon-bg"></i>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="summary-card {% if balance >= 0 %}bg-primary{% else %}bg-warning text-dark{% endif %} text-white shadow-sm">
+            <div class="small text-uppercase opacity-75 fw-medium">ยอดเงินคงเหลือสุทธิ</div>
+            <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(balance) }}</div>
+            <i class="fa-solid fa-scale-balanced icon-bg"></i>
+        </div>
+    </div>
+</div>
+
+<!-- 2. ฟอร์มบันทึกแบบหลายรายการ (Multi-item Batch Form) -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+            <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-pen-to-square text-primary me-2"></i>บันทึกรายการประจำวัน</h5>
+            <small class="text-muted d-block d-md-inline">รองรับการกรอกหลายรายการพร้อมกัน</small>
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" id="add-row-btn">
+            <i class="fa-solid fa-plus me-1"></i> เพิ่มแถวรายการ
+        </button>
+    </div>
+    <div class="card-body p-2 p-md-3">
+        <form id="batch-form">
+            <input type="hidden" id="csrf_token" value="{{ csrf_token() }}">
+            
+            <!-- Table Container ปรับ Scroll Horizontal บน mobile -->
+            <div class="table-responsive">
+                <table class="table table-borderless align-middle mb-0" id="batch-table">
+                    <thead class="table-light border-bottom">
+                        <tr class="small text-muted text-uppercase">
+                            <th style="width: 140px;">ประเภท</th>
+                            <th style="width: 170px;">หมวดหมู่</th>
+                            <th>รายการ / รายละเอียด</th>
+                            <th style="width: 150px;">จำนวนเงิน</th>
+                            <th style="width: 170px;">ช่องทาง</th>
+                            <th style="width: 150px;">วันที่</th>
+                            <th style="width: 50px;" class="text-center">ลบ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batch-tbody">
+                        <!-- Dynamic Rows Created by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-end mt-3 pt-2 border-top">
+                <button type="submit" class="btn btn-primary btn-mobile-full rounded-pill px-4 py-2 fw-medium">
+                    <i class="fa-solid fa-floppy-disk me-1"></i> บันทึกข้อมูลทั้งหมด
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 3. ประวัติการทำรายการ (Transaction History) -->
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-3">
+        <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i>ประวัติรายการล่าสุด</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle history-table mb-0">
+                <thead class="table-light">
+                    <tr class="small text-muted">
+                        <th>วันที่</th>
+                        <th>ประเภท</th>
+                        <th>หมวดหมู่</th>
+                        <th>รายละเอียด</th>
+                        <th class="d-none d-md-table-cell">ช่องทาง</th>
+                        <th class="text-end">จำนวนเงิน</th>
+                        <th class="text-center">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in transactions %}
+                    <tr>
+                        <td class="text-nowrap small">{{ item.date }}</td>
+                        <td>
+                            {% if item.type == 'income' %}
+                                <span class="badge bg-success-subtle text-success px-2 py-1">รายรับ</span>
+                            {% else %}
+                                <span class="badge bg-danger-subtle text-danger px-2 py-1">รายจ่าย</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-medium">{{ item.category }}</td>
+                        <td class="text-truncate" style="max-width: 200px;">{{ item.description or '-' }}</td>
+                        <td class="d-none d-md-table-cell small text-muted">{{ item.payment_method }}</td>
+                        <td class="text-end fw-bold text-nowrap {% if item.type == 'income' %}text-success{% else %}text-danger{% endif %}">
+                            {% if item.type == 'income' %}+{% else %}-{% endif %}฿{{ "{:,.2f}".format(item.amount) }}
+                        </td>
+                        <td class="text-center">
+                            <form method="POST" action="/users/delete/{{ item.id }}" onsubmit="return confirm('ยืนยันการลบรายการนี้?');" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-link text-danger p-0 border-0"><i class="fa-regular fa-trash-can"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">ยังไม่มีประวัติการบันทึกรายการ</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tbody = document.getElementById('batch-tbody');
+    const addRowBtn = document.getElementById('add-row-btn');
+    const batchForm = document.getElementById('batch-form');
+    const today = new Date().toISOString().split('T')[0];
+
+    function createRow() {
+        const tr = document.createElement('tr');
+        tr.className = "align-middle";
+        tr.innerHTML = `
+            <td>
+                <select class="form-select form-select-sm type-select" required>
+                    <option value="expense" selected>รายจ่าย</option>
+                    <option value="income">รายรับ</option>
+                </select>
+            </td>
+            <td>
+                <select class="form-select form-select-sm category-select">
+                    <option value="อาหาร/เครื่องดื่ม">อาหาร/เครื่องดื่ม</option>
+                    <option value="เงินเดือน/ค่าจ้าง">เงินเดือน/ค่าจ้าง</option>
+                    <option value="การเดินทาง">การเดินทาง</option>
+                    <option value="ค่าใช้จ่ายทั่วไป">ค่าใช้จ่ายทั่วไป</option>
+                    <option value="ช้อปปิ้ง">ช้อปปิ้ง</option>
+                    <option value="การลงทุน">การลงทุน</option>
+                </select>
+            </td>
+            <td><input type="text" class="form-control form-control-sm desc-input" placeholder="รายละเอียดรายการ..." required></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm amount-input" placeholder="0.00" min="0.01" required></td>
+            <td>
+                <select class="form-select form-select-sm payment-select">
+                    <option value="เงินสด">เงินสด</option>
+                    <option value="โอนเงิน/Mobile Banking">โอนเงิน/Mobile Banking</option>
+                    <option value="บัตรเครดิต">บัตรเครดิต</option>
+                </select>
+            </td>
+            <td><input type="date" class="form-control form-control-sm date-input" value="${today}"></td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger border-0 remove-row-btn"><i class="fa-solid fa-xmark fs-5"></i></button>
+            </td>
+        `;
+
+        tr.querySelector('.remove-row-btn').addEventListener('click', function() {
+            if (tbody.children.length > 1) {
+                tr.remove();
+            } else {
+                alert('ต้องมีอย่างน้อย 1 รายการ');
+            }
+        });
+
+        tbody.appendChild(tr);
+    }
+
+    // สร้างแถวเริ่มต้น 2 รายการ
+    createRow();
+    createRow();
+
+    addRowBtn.addEventListener('click', createRow);
+
+    batchForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const rows = tbody.querySelectorAll('tr');
+        const items = [];
+
+        rows.forEach(row => {
+            items.push({
+                type: row.querySelector('.type-select').value,
+                category: row.querySelector('.category-select').value,
+                description: row.querySelector('.desc-input').value,
+                amount: row.querySelector('.amount-input').value,
+                payment_method: row.querySelector('.payment-select').value,
+                date: row.querySelector('.date-input').value
+            });
+        });
+
+        const csrfToken = document.getElementById('csrf_token').value;
+
+        try {
+            const res = await fetch('/users/batch-add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({ items: items })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + data.message);
+            }
+        } catch (err) {
+            alert('การเชื่อมต่อล้มเหลว กรุณาลองใหม่อีกครั้ง');
+        }
+    });
+});
+</script>
+{% endblock %}

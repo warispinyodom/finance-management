@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center align-items-center min-vh-75 my-4">
+    <div class="col-12 col-sm-10 col-md-6 col-lg-4">
+        <div class="card shadow-sm p-3 p-md-4">
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 56px; height: 56px;">
+                        <i class="fa-solid fa-user-plus fs-4"></i>
+                    </div>
+                    <h4 class="fw-bold">สร้างบัญชีผู้ใช้</h4>
+                    <p class="text-muted small">สมัครสมาชิกเพื่อเริ่มต้นใช้งานระบบ</p>
+                </div>
+                <form method="POST" action="/register">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">อีเมล</label>
+                        <input type="email" name="email" class="form-control" required placeholder="name@example.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium">รหัสผ่าน (ขั้นต่ำ 6 ตัวอักษร)</label>
+                        <input type="password" name="password" class="form-control" minlength="6" required placeholder="••••••••">
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 py-2 rounded-pill fw-medium mt-2">ยืนยันลงทะเบียน</button>
+                </form>
+                <div class="text-center mt-4 pt-2 border-top">
+                    <small class="text-muted">มีบัญชีผู้ใช้อยู่แล้ว? <a href="/login" class="text-primary text-decoration-none fw-medium">เข้าสู่ระบบ</a></small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
