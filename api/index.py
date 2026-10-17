@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import os
 import secrets
 import datetime
@@ -7,13 +9,18 @@ import uuid
 import requests
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file, abort
 from dotenv import load_dotenv
+from cryptography.fernet import Fernet, InvalidToken
 from urllib.parse import quote
 
 # โหลด Environment Variables
 load_dotenv()
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
-app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
+app.secret_key = os.getenv('FLASK_SECRET_KEY')
+if not app.secret_key:
+    if os.getenv('VERCEL') == '1':
+        raise RuntimeError('FLASK_SECRET_KEY must be configured in production')
+    app.secret_key = secrets.token_hex(32)
 
 # กำหนด Security Headers และ Cookie Properties ตาม OWASP Standard
 app.config.update(
@@ -51,7 +58,33 @@ def apply_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     response.headers['Content-Security-Policy'] = "default-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;"
+    if is_authenticated() or request.endpoint == 'logout':
+        response.headers['Cache-Control'] = 'no-store, private'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Vary'] = 'Cookie'
     return response
+
+def _session_token_cipher():
+    key = base64.urlsafe_b64encode(hashlib.sha256(app.secret_key.encode('utf-8')).digest())
+    return Fernet(key)
+
+def set_firebase_id_token(token):
+    session['_firebase_id_token'] = _session_token_cipher().encrypt(token.encode('utf-8')).decode('ascii')
+    session.pop('idToken', None)
+
+def get_firebase_id_token():
+    encrypted_token = session.get('_firebase_id_token')
+    if encrypted_token:
+        try:
+            return _session_token_cipher().decrypt(encrypted_token.encode('ascii')).decode('utf-8')
+        except (InvalidToken, ValueError):
+            session.pop('_firebase_id_token', None)
+            return None
+
+    legacy_token = session.pop('idToken', None)
+    if legacy_token:
+        set_firebase_id_token(legacy_token)
+    return legacy_token
 
 # สร้างและตรวจสอบ CSRF Token
 def generate_csrf_token():
@@ -73,7 +106,12 @@ def is_authenticated():
 
 @app.before_request
 def sync_session_profile_photo():
-    if not is_authenticated() or session.get('profile_photo_loaded'):
+    if not is_authenticated():
+        return
+
+    if 'idToken' in session:
+        get_firebase_id_token()
+    if session.get('profile_photo_loaded'):
         return
 
     try:
@@ -233,9 +271,10 @@ def login():
         
         if res.status_code == 200:
             data = res.json()
+            session.clear()
             session['user_id'] = data['localId']
             session['email'] = data['email']
-            session['idToken'] = data['idToken']
+            set_firebase_id_token(data['idToken'])
             session['display_name'] = data.get('displayName', '')
             try:
                 photo_metadata = get_profile_photo_metadata(data['localId'])
@@ -252,8 +291,10 @@ def login():
 
     return render_template('login.html')
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
+    if is_authenticated() and not verify_csrf():
+        abort(403)
     session.clear()
     flash('ออกจากระบบเรียบร้อย', 'info')
     return redirect(url_for('login'))
@@ -273,7 +314,7 @@ def profile():
         }
         try:
             lookup_url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={FIREBASE_API_KEY}"
-            response = requests.post(lookup_url, json={'idToken': session.get('idToken')}, timeout=10)
+            response = requests.post(lookup_url, json={'idToken': get_firebase_id_token()}, timeout=10)
             if response.ok:
                 users = response.json().get('users', [])
                 if users:
@@ -458,7 +499,7 @@ def profile():
         if not auth_response.ok:
             flash('รหัสผ่านปัจจุบันไม่ถูกต้อง', 'danger')
             return redirect(url_for('profile'))
-        id_token = auth_response.json().get('idToken', session.get('idToken'))
+        id_token = auth_response.json().get('idToken', get_firebase_id_token())
 
         try:
             update_data = {
@@ -497,7 +538,7 @@ def profile():
         data = response.json()
         session['display_name'] = data.get('displayName', display_name)
         session['email'] = data.get('email', email)
-        session['idToken'] = data.get('idToken', id_token)
+        set_firebase_id_token(data.get('idToken', id_token))
         flash('บันทึกโปรไฟล์เรียบร้อยแล้ว', 'success')
         return redirect(url_for('profile'))
 
@@ -543,7 +584,7 @@ def profile():
             flash('เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณาลองใหม่', 'danger')
             return redirect(url_for('profile'))
 
-        session['idToken'] = response.json().get('idToken', auth_response.json()['idToken'])
+        set_firebase_id_token(response.json().get('idToken', auth_response.json()['idToken']))
         flash('เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', 'success')
         return redirect(url_for('profile'))
 
@@ -792,4 +833,4 @@ def delete_transaction(tx_id):
     return redirect(url_for('users_dashboard'))
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=os.getenv('FLASK_DEBUG') == '1' and os.getenv('VERCEL') != '1', port=5000)

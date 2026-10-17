@@ -32,9 +32,12 @@
                 <a href="{{ url_for('profile') }}" class="btn btn-outline-light btn-sm fw-medium" aria-label="จัดการโปรไฟล์" title="จัดการโปรไฟล์">
                     <i class="fa-solid fa-user-gear"></i><span class="d-none d-lg-inline ms-2">โปรไฟล์</span>
                 </a>
-                <a href="/logout" class="btn btn-light btn-sm fw-medium text-primary" aria-label="ออกจากระบบ" title="ออกจากระบบ">
-                    <i class="fa-solid fa-right-from-bracket"></i><span class="d-none d-sm-inline ms-1">ออกจากระบบ</span>
-                </a>
+                <form method="POST" action="{{ url_for('logout') }}" class="m-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-light btn-sm fw-medium text-primary" aria-label="ออกจากระบบ" title="ออกจากระบบ">
+                        <i class="fa-solid fa-right-from-bracket"></i><span class="d-none d-sm-inline ms-1">ออกจากระบบ</span>
+                    </button>
+                </form>
             </div>
             {% endif %}
         </div>
