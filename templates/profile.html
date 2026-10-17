@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="profile-page">
+    <div class="profile-heading mb-4">
+        <a class="btn btn-sm btn-outline-secondary mb-3" href="{{ url_for('users_dashboard') }}">
+            <i class="fa-solid fa-arrow-left me-1"></i>กลับหน้ารายการ
+        </a>
+        <h1 class="h3 fw-bold mb-1">โปรไฟล์และบัญชี</h1>
+        <p class="text-muted mb-0">จัดการข้อมูลส่วนตัวและความปลอดภัยของบัญชี</p>
+    </div>
+
+    <div class="row g-4 align-items-start">
+        <div class="col-12 col-lg-7">
+            <section class="card profile-card h-100" aria-labelledby="profile-info-title">
+                <div class="card-header bg-white py-3">
+                    <h2 class="h5 fw-bold mb-0" id="profile-info-title"><i class="fa-regular fa-id-card text-primary me-2"></i>ข้อมูลบัญชี</h2>
+                </div>
+                <div class="card-body p-3 p-md-4">
+                    <div class="profile-identity mb-4">
+                        <div class="profile-avatar-wrap">
+                            <img class="profile-avatar profile-photo {% if not profile.photo_file_id %}d-none{% endif %}" id="profile-avatar-image" {% if profile.photo_file_id %}src="{{ url_for('profile_photo', v=profile.photo_updated_at) }}"{% endif %} alt="รูปโปรไฟล์">
+                            <div class="profile-avatar profile-avatar-fallback {% if profile.photo_file_id %}d-none{% endif %}" id="profile-avatar-fallback" aria-hidden="true">{{ (profile.display_name or profile.email or '?')[:1]|upper }}</div>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="fw-semibold text-truncate">{{ profile.display_name or 'ตั้งชื่อที่แสดง' }}</div>
+                            <div class="small text-muted text-break">{{ profile.email }}</div>
+                        </div>
+                    </div>
+
+                    <div class="profile-photo-settings mb-4">
+                        <form method="POST" action="{{ url_for('profile') }}" enctype="multipart/form-data" class="profile-photo-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="upload_photo">
+                            <label class="form-label fw-medium" for="profile-photo">รูปโปรไฟล์</label>
+                            <input class="form-control" id="profile-photo" name="profile_photo" type="file" accept="image/jpeg,image/png,image/webp" required>
+                            <div class="form-text mb-3">JPEG, PNG หรือ WebP ไม่เกิน 5 MB รูปตัวอย่างจะเปลี่ยนทันทีเมื่อเลือกรูป</div>
+                            <div class="profile-photo-actions">
+                                <button type="submit" class="btn btn-outline-primary">
+                                    <i class="fa-solid fa-cloud-arrow-up me-1"></i>{{ 'เปลี่ยนรูปโปรไฟล์' if profile.photo_file_id else 'อัปโหลดรูปโปรไฟล์' }}
+                                </button>
+                            </div>
+                        </form>
+                        {% if profile.photo_file_id %}
+                            <form method="POST" action="{{ url_for('profile') }}" class="profile-photo-delete-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="delete_photo">
+                                <button type="submit" class="btn btn-outline-danger">
+                                    <i class="fa-regular fa-trash-can me-1"></i>ลบรูปโปรไฟล์
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+
+                    <form method="POST" action="{{ url_for('profile') }}" class="profile-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="update_profile">
+                        <div class="mb-3">
+                            <label class="form-label fw-medium" for="display-name">ชื่อที่แสดง</label>
+                            <input class="form-control" id="display-name" name="display_name" type="text" value="{{ profile.display_name }}" maxlength="80" autocomplete="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-medium" for="profile-email">อีเมล</label>
+                            <input class="form-control" id="profile-email" name="email" type="email" value="{{ profile.email }}" maxlength="254" autocomplete="email" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-medium" for="profile-current-password">รหัสผ่านปัจจุบัน</label>
+                            <input class="form-control" id="profile-current-password" name="current_password" type="password" autocomplete="current-password" aria-describedby="email-password-help">
+                            <div class="form-text" id="email-password-help">กรอกเพื่อยืนยันตัวตนก่อนบันทึกข้อมูลบัญชี</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="fa-solid fa-floppy-disk me-1"></i>บันทึกข้อมูลบัญชี
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-12 col-lg-5">
+            <section class="card profile-card h-100" aria-labelledby="password-title">
+                <div class="card-header bg-white py-3">
+                    <h2 class="h5 fw-bold mb-0" id="password-title"><i class="fa-solid fa-shield-halved text-success me-2"></i>ความปลอดภัย</h2>
+                </div>
+                <div class="card-body p-3 p-md-4">
+                    <p class="small text-muted mb-4">ใช้รหัสผ่านปัจจุบันเพื่อยืนยันก่อนตั้งรหัสผ่านใหม่</p>
+                    <form method="POST" action="{{ url_for('profile') }}" id="password-form" class="profile-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="change_password">
+                        <div class="mb-3">
+                            <label class="form-label fw-medium" for="current-password">รหัสผ่านปัจจุบัน</label>
+                            <input class="form-control" id="current-password" name="current_password" type="password" autocomplete="current-password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-medium" for="new-password">รหัสผ่านใหม่</label>
+                            <input class="form-control" id="new-password" name="new_password" type="password" minlength="6" autocomplete="new-password" required>
+                            <div class="form-text">อย่างน้อย 6 ตัวอักษร</div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-medium" for="confirm-password">ยืนยันรหัสผ่านใหม่</label>
+                            <input class="form-control" id="confirm-password" name="confirm_password" type="password" minlength="6" autocomplete="new-password" required>
+                        </div>
+                        <button type="submit" class="btn btn-outline-success px-4">
+                            <i class="fa-solid fa-key me-1"></i>เปลี่ยนรหัสผ่าน
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const passwordForm = document.getElementById('password-form');
+    const newPassword = document.getElementById('new-password');
+    const confirmPassword = document.getElementById('confirm-password');
+    const photoInput = document.getElementById('profile-photo');
+    const avatarImage = document.getElementById('profile-avatar-image');
+    const avatarFallback = document.getElementById('profile-avatar-fallback');
+    let previewUrl;
+
+    document.querySelectorAll('.profile-photo-delete-form').forEach(form => {
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const confirmed = await window.confirmAppAction({
+                title: 'ลบรูปโปรไฟล์?',
+                text: 'ระบบจะนำรูปออกจากบัญชีของคุณ',
+                confirmButtonText: 'ลบรูป'
+            });
+            if (confirmed) form.submit();
+        });
+    });
+
+    avatarImage.addEventListener('error', function() {
+        avatarImage.classList.add('d-none');
+        avatarFallback.classList.remove('d-none');
+    });
+
+    photoInput.addEventListener('change', function() {
+        const file = photoInput.files[0];
+        photoInput.setCustomValidity('');
+        if (!file) return;
+
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+            photoInput.setCustomValidity('เลือกไฟล์ JPEG, PNG หรือ WebP ที่มีขนาดไม่เกิน 5 MB');
+            photoInput.reportValidity();
+            return;
+        }
+
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = URL.createObjectURL(file);
+        avatarImage.src = previewUrl;
+        avatarImage.classList.remove('d-none');
+        avatarFallback.classList.add('d-none');
+    });
+
+    function validatePasswordMatch() {
+        confirmPassword.setCustomValidity(
+            confirmPassword.value && confirmPassword.value !== newPassword.value
+                ? 'รหัสผ่านใหม่ไม่ตรงกัน'
+                : ''
+        );
+    }
+
+    newPassword.addEventListener('input', validatePasswordMatch);
+    confirmPassword.addEventListener('input', validatePasswordMatch);
+    passwordForm.addEventListener('submit', validatePasswordMatch);
+});
+</script>
+{% endblock %}

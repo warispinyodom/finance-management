@@ -3,21 +3,21 @@
 
 <!-- 1. ส่วนสรุปยอดเงินคงเหลือ (Responsive Summary Cards) -->
 <div class="row g-3 mb-4">
-    <div class="col-12 col-sm-6 col-md-4">
+    <div class="col-6 col-xl-4">
         <div class="summary-card bg-success text-white shadow-sm">
             <div class="small text-uppercase opacity-75 fw-medium">รายรับรวม</div>
             <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(total_income) }}</div>
             <i class="fa-solid fa-arrow-trend-up icon-bg"></i>
         </div>
     </div>
-    <div class="col-12 col-sm-6 col-md-4">
+    <div class="col-6 col-xl-4">
         <div class="summary-card bg-danger text-white shadow-sm">
             <div class="small text-uppercase opacity-75 fw-medium">รายจ่ายรวม</div>
             <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(total_expense) }}</div>
             <i class="fa-solid fa-arrow-trend-down icon-bg"></i>
         </div>
     </div>
-    <div class="col-12 col-md-4">
+    <div class="col-12 col-xl-4">
         <div class="summary-card {% if balance >= 0 %}bg-primary{% else %}bg-warning text-dark{% endif %} text-white shadow-sm">
             <div class="small text-uppercase opacity-75 fw-medium">ยอดเงินคงเหลือสุทธิ</div>
             <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(balance) }}</div>
@@ -72,14 +72,30 @@
 
 <!-- 3. ประวัติการทำรายการ (Transaction History) -->
 <div class="card shadow-sm">
-    <div class="card-header bg-white py-3">
+    <div class="card-header bg-white py-3 history-toolbar">
         <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i>ประวัติรายการล่าสุด</h5>
+        <div class="history-actions">
+            <label class="visually-hidden" for="history-search">ค้นหาประวัติรายการ</label>
+            <input class="form-control form-control-sm history-search" id="history-search" type="search" aria-label="ค้นหารายการ" placeholder="ค้นหารายการ" autocomplete="off">
+            <label class="form-check mobile-select-all d-md-none">
+                <input class="form-check-input" id="select-all-transactions-mobile" type="checkbox">
+                <span class="form-check-label">เลือกทั้งหมด</span>
+            </label>
+            <span class="small text-muted" id="selected-count" aria-live="polite">เลือก 0 รายการ</span>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="bulk-edit-btn" disabled>
+                <i class="fa-solid fa-pen-to-square me-1"></i>แก้ไขรายการที่เลือก
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm" id="bulk-delete-btn" disabled>
+                <i class="fa-regular fa-trash-can me-1"></i>ลบรายการที่เลือก
+            </button>
+        </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle history-table mb-0">
                 <thead class="table-light">
                     <tr class="small text-muted">
+                        <th class="text-center" style="width: 44px;"><input class="form-check-input" type="checkbox" id="select-all-transactions" aria-label="เลือกทุกรายการ"></th>
                         <th>วันที่</th>
                         <th>ประเภท</th>
                         <th>หมวดหมู่</th>
@@ -91,36 +107,80 @@
                 </thead>
                 <tbody>
                     {% for item in transactions %}
-                    <tr>
-                        <td class="text-nowrap small">{{ item.date }}</td>
-                        <td>
+                    <tr class="transaction-row">
+                        <td class="text-center transaction-select-cell"><input class="form-check-input transaction-checkbox" type="checkbox" value="{{ item.id }}" aria-label="เลือกรายการ {{ item.description or item.category }}"></td>
+                        <td class="text-nowrap small" data-label="วันที่">{{ item.date }}</td>
+                        <td data-label="ประเภท">
                             {% if item.type == 'income' %}
                                 <span class="badge bg-success-subtle text-success px-2 py-1">รายรับ</span>
                             {% else %}
                                 <span class="badge bg-danger-subtle text-danger px-2 py-1">รายจ่าย</span>
                             {% endif %}
                         </td>
-                        <td class="fw-medium">{{ item.category }}</td>
-                        <td class="text-truncate" style="max-width: 200px;">{{ item.description or '-' }}</td>
-                        <td class="d-none d-md-table-cell small text-muted">{{ item.payment_method }}</td>
-                        <td class="text-end fw-bold text-nowrap {% if item.type == 'income' %}text-success{% else %}text-danger{% endif %}">
+                        <td class="fw-medium" data-label="หมวดหมู่">{{ item.category }}</td>
+                        <td class="transaction-description" data-label="รายละเอียด">{{ item.description or '-' }}</td>
+                        <td class="d-none d-md-table-cell small text-muted transaction-payment" data-label="ช่องทาง">{{ item.payment_method }}</td>
+                        <td class="text-end fw-bold text-nowrap transaction-amount {% if item.type == 'income' %}text-success{% else %}text-danger{% endif %}" data-label="จำนวนเงิน">
                             {% if item.type == 'income' %}+{% else %}-{% endif %}฿{{ "{:,.2f}".format(item.amount) }}
                         </td>
-                        <td class="text-center">
-                            <form method="POST" action="/users/delete/{{ item.id }}" onsubmit="return confirm('ยืนยันการลบรายการนี้?');" class="d-inline">
+                        <td class="text-center transaction-action" data-label="จัดการ">
+                            <form method="POST" action="/users/delete/{{ item.id }}" class="d-inline transaction-delete-form">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-link text-danger p-0 border-0"><i class="fa-regular fa-trash-can"></i></button>
                             </form>
                         </td>
                     </tr>
                     {% else %}
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-4">ยังไม่มีประวัติการบันทึกรายการ</td>
+                    <tr class="history-empty-row">
+                        <td colspan="8" class="text-center text-muted py-4">ยังไม่มีประวัติการบันทึกรายการ</td>
                     </tr>
                     {% endfor %}
+                    <tr class="search-empty-row" hidden>
+                        <td colspan="8" class="text-center text-muted py-4">ไม่พบรายการที่ตรงกับคำค้น</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4" id="bulk-edit-panel" hidden>
+    <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between">
+        <h5 class="mb-0 fw-bold" id="bulk-edit-title">แก้ไขรายการที่เลือก</h5>
+        <button type="button" class="btn-close" id="close-bulk-edit-btn" aria-label="ปิด"></button>
+    </div>
+    <div class="card-body">
+                <p class="small text-muted mb-3">เลือกฟิลด์ที่ต้องการเปลี่ยน ค่าใหม่จะถูกใช้กับทุกรายการที่เลือก</p>
+                <div class="bulk-edit-grid">
+                    <div class="bulk-edit-field">
+                        <div class="form-check"><input class="form-check-input" type="checkbox" data-field-toggle="type" id="apply-type"><label class="form-check-label" for="apply-type">ประเภท</label></div>
+                        <select class="form-select form-select-sm mt-2" data-field-input="type"><option value="expense">รายจ่าย</option><option value="income">รายรับ</option></select>
+                    </div>
+                    <div class="bulk-edit-field">
+                        <div class="form-check"><input class="form-check-input" type="checkbox" data-field-toggle="category" id="apply-category"><label class="form-check-label" for="apply-category">หมวดหมู่</label></div>
+                        <select class="form-select form-select-sm mt-2" data-field-input="category"><option value="อาหาร/เครื่องดื่ม">อาหาร/เครื่องดื่ม</option><option value="เงินเดือน/ค่าจ้าง">เงินเดือน/ค่าจ้าง</option><option value="การเดินทาง">การเดินทาง</option><option value="ค่าใช้จ่ายทั่วไป">ค่าใช้จ่ายทั่วไป</option><option value="ช้อปปิ้ง">ช้อปปิ้ง</option><option value="การลงทุน">การลงทุน</option></select>
+                    </div>
+                    <div class="bulk-edit-field">
+                        <div class="form-check"><input class="form-check-input" type="checkbox" data-field-toggle="description" id="apply-description"><label class="form-check-label" for="apply-description">รายละเอียด</label></div>
+                        <input class="form-control form-control-sm mt-2" type="text" data-field-input="description" placeholder="รายละเอียดใหม่">
+                    </div>
+                    <div class="bulk-edit-field">
+                        <div class="form-check"><input class="form-check-input" type="checkbox" data-field-toggle="amount" id="apply-amount"><label class="form-check-label" for="apply-amount">จำนวนเงิน</label></div>
+                        <input class="form-control form-control-sm mt-2" type="number" data-field-input="amount" min="0.01" step="0.01" placeholder="0.00">
+                    </div>
+                    <div class="bulk-edit-field">
+                        <div class="form-check"><input class="form-check-input" type="checkbox" data-field-toggle="payment_method" id="apply-payment-method"><label class="form-check-label" for="apply-payment-method">ช่องทาง</label></div>
+                        <select class="form-select form-select-sm mt-2" data-field-input="payment_method"><option value="เงินสด">เงินสด</option><option value="โอนเงิน/Mobile Banking">โอนเงิน/Mobile Banking</option><option value="บัตรเครดิต">บัตรเครดิต</option></select>
+                    </div>
+                    <div class="bulk-edit-field">
+                        <div class="form-check"><input class="form-check-input" type="checkbox" data-field-toggle="date" id="apply-date"><label class="form-check-label" for="apply-date">วันที่</label></div>
+                        <input class="form-control form-control-sm mt-2" type="date" data-field-input="date">
+                    </div>
+                </div>
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <button type="button" class="btn btn-light" id="cancel-bulk-edit-btn">ยกเลิก</button>
+                <button type="button" class="btn btn-primary" id="save-bulk-edit-btn"><i class="fa-solid fa-floppy-disk me-1"></i>บันทึกการแก้ไข</button>
+            </div>
     </div>
 </div>
 {% endblock %}
@@ -131,19 +191,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('batch-tbody');
     const addRowBtn = document.getElementById('add-row-btn');
     const batchForm = document.getElementById('batch-form');
+    const transactionCheckboxes = document.querySelectorAll('.transaction-checkbox');
+    const selectAllTransactions = document.getElementById('select-all-transactions');
+    const selectAllMobileTransactions = document.getElementById('select-all-transactions-mobile');
+    const selectedCount = document.getElementById('selected-count');
+    const historySearch = document.getElementById('history-search');
+    const searchEmptyRow = document.querySelector('.search-empty-row');
+    const bulkEditBtn = document.getElementById('bulk-edit-btn');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+    const bulkEditPanel = document.getElementById('bulk-edit-panel');
+    const saveBulkEditBtn = document.getElementById('save-bulk-edit-btn');
     const today = new Date().toISOString().split('T')[0];
 
     function createRow() {
         const tr = document.createElement('tr');
         tr.className = "align-middle";
         tr.innerHTML = `
-            <td>
+            <td data-label="ประเภท">
                 <select class="form-select form-select-sm type-select" required>
                     <option value="expense" selected>รายจ่าย</option>
                     <option value="income">รายรับ</option>
                 </select>
             </td>
-            <td>
+            <td data-label="หมวดหมู่">
                 <select class="form-select form-select-sm category-select">
                     <option value="อาหาร/เครื่องดื่ม">อาหาร/เครื่องดื่ม</option>
                     <option value="เงินเดือน/ค่าจ้าง">เงินเดือน/ค่าจ้าง</option>
@@ -153,17 +223,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     <option value="การลงทุน">การลงทุน</option>
                 </select>
             </td>
-            <td><input type="text" class="form-control form-control-sm desc-input" placeholder="รายละเอียดรายการ..." required></td>
-            <td><input type="number" step="0.01" class="form-control form-control-sm amount-input" placeholder="0.00" min="0.01" required></td>
-            <td>
+            <td data-label="รายการ"><input type="text" class="form-control form-control-sm desc-input" placeholder="เช่น ค่าอาหาร" required></td>
+            <td data-label="จำนวนเงิน"><input type="number" step="0.01" class="form-control form-control-sm amount-input" placeholder="0.00" min="0.01" required></td>
+            <td data-label="ช่องทาง">
                 <select class="form-select form-select-sm payment-select">
                     <option value="เงินสด">เงินสด</option>
                     <option value="โอนเงิน/Mobile Banking">โอนเงิน/Mobile Banking</option>
                     <option value="บัตรเครดิต">บัตรเครดิต</option>
                 </select>
             </td>
-            <td><input type="date" class="form-control form-control-sm date-input" value="${today}"></td>
-            <td class="text-center">
+            <td data-label="วันที่"><input type="date" class="form-control form-control-sm date-input" value="${today}"></td>
+            <td class="text-center batch-row-action" data-label="ลบแถว">
                 <button type="button" class="btn btn-sm btn-outline-danger border-0 remove-row-btn"><i class="fa-solid fa-xmark fs-5"></i></button>
             </td>
         `;
@@ -172,18 +242,187 @@ document.addEventListener('DOMContentLoaded', function() {
             if (tbody.children.length > 1) {
                 tr.remove();
             } else {
-                alert('ต้องมีอย่างน้อย 1 รายการ');
+                window.showAppAlert('ต้องมีอย่างน้อย 1 รายการ', 'warning');
             }
         });
 
         tbody.appendChild(tr);
     }
 
-    // สร้างแถวเริ่มต้น 2 รายการ
-    createRow();
+    // เริ่มด้วยหนึ่งแถว แล้วเพิ่มได้ตามจำนวนรายการ
     createRow();
 
     addRowBtn.addEventListener('click', createRow);
+
+    function updateSelectionState() {
+        const selected = [...transactionCheckboxes].filter(checkbox => checkbox.checked);
+        const visibleCheckboxes = [...transactionCheckboxes].filter(checkbox => !checkbox.closest('tr').hidden);
+        const visibleSelected = visibleCheckboxes.filter(checkbox => checkbox.checked);
+        transactionCheckboxes.forEach(checkbox => {
+            checkbox.closest('tr').classList.toggle('is-selected', checkbox.checked);
+        });
+        selectedCount.textContent = `เลือก ${selected.length} รายการ`;
+        bulkEditBtn.disabled = selected.length === 0;
+        bulkDeleteBtn.disabled = selected.length === 0;
+        selectAllTransactions.disabled = visibleCheckboxes.length === 0;
+        selectAllTransactions.checked = visibleCheckboxes.length > 0 && visibleSelected.length === visibleCheckboxes.length;
+        selectAllTransactions.indeterminate = visibleSelected.length > 0 && visibleSelected.length < visibleCheckboxes.length;
+        selectAllMobileTransactions.disabled = visibleCheckboxes.length === 0;
+        selectAllMobileTransactions.checked = selectAllTransactions.checked;
+        selectAllMobileTransactions.indeterminate = selectAllTransactions.indeterminate;
+    }
+
+    historySearch.addEventListener('input', function() {
+        const query = historySearch.value.trim().toLocaleLowerCase();
+        let visibleCount = 0;
+        document.querySelectorAll('.transaction-row').forEach(row => {
+            row.hidden = !row.textContent.toLocaleLowerCase().includes(query);
+            if (!row.hidden) visibleCount += 1;
+        });
+        searchEmptyRow.hidden = !transactionCheckboxes.length || visibleCount > 0;
+        updateSelectionState();
+    });
+
+    transactionCheckboxes.forEach(checkbox => checkbox.addEventListener('change', updateSelectionState));
+    document.querySelectorAll('.transaction-delete-form').forEach(form => {
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const confirmed = await window.confirmAppAction({
+                title: 'ลบรายการนี้?',
+                text: 'รายการที่ลบแล้วไม่สามารถกู้คืนได้',
+                confirmButtonText: 'ลบรายการ'
+            });
+            if (confirmed) form.submit();
+        });
+    });
+
+    document.querySelectorAll('.transaction-row').forEach(row => {
+        row.addEventListener('click', function(event) {
+            if (event.target.closest('input, button, a, form, label, select, textarea')) return;
+            const checkbox = row.querySelector('.transaction-checkbox');
+            checkbox.checked = !checkbox.checked;
+            updateSelectionState();
+        });
+    });
+    function selectVisibleTransactions(checked) {
+        transactionCheckboxes.forEach(checkbox => {
+            if (!checkbox.closest('tr').hidden) checkbox.checked = checked;
+        });
+        updateSelectionState();
+    }
+
+    selectAllTransactions.addEventListener('change', function() {
+        selectVisibleTransactions(selectAllTransactions.checked);
+    });
+    selectAllMobileTransactions.addEventListener('change', function() {
+        selectVisibleTransactions(selectAllMobileTransactions.checked);
+    });
+
+    bulkDeleteBtn.addEventListener('click', async function() {
+        const selectedIds = [...transactionCheckboxes]
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.value);
+        if (!selectedIds.length) return;
+        const confirmed = await window.confirmAppAction({
+            title: `ลบ ${selectedIds.length} รายการ?`,
+            text: 'รายการที่ลบแล้วไม่สามารถกู้คืนได้',
+            confirmButtonText: 'ลบรายการ'
+        });
+        if (!confirmed) return;
+
+        bulkDeleteBtn.disabled = true;
+        try {
+            const response = await fetch('/users/batch-delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.getElementById('csrf_token').value
+                },
+                body: JSON.stringify({ ids: selectedIds })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                await window.showAppAlert('ลบรายการไม่สำเร็จ: ' + (data.message || `HTTP ${response.status}`), 'danger');
+                return;
+            }
+            await window.showAppAlert(`ลบ ${data.deleted_count} รายการเรียบร้อยแล้ว`, 'success');
+            window.location.reload();
+        } catch (err) {
+            await window.showAppAlert('การเชื่อมต่อล้มเหลว กรุณาลองใหม่อีกครั้ง', 'danger');
+        } finally {
+            bulkDeleteBtn.disabled = false;
+        }
+    });
+
+    bulkEditBtn.addEventListener('click', function() {
+        bulkEditPanel.hidden = false;
+        bulkEditPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        bulkEditPanel.querySelector('[data-field-input]').focus({ preventScroll: true });
+    });
+
+    document.getElementById('close-bulk-edit-btn').addEventListener('click', function() {
+        bulkEditPanel.hidden = true;
+    });
+    document.getElementById('cancel-bulk-edit-btn').addEventListener('click', function() {
+        bulkEditPanel.hidden = true;
+    });
+
+    document.querySelectorAll('[data-field-toggle]').forEach(toggle => {
+        const input = document.querySelector(`[data-field-input="${toggle.dataset.fieldToggle}"]`);
+        toggle.addEventListener('change', function() {
+            input.required = toggle.checked && ['amount', 'date'].includes(toggle.dataset.fieldToggle);
+        });
+        ['input', 'change'].forEach(eventName => input.addEventListener(eventName, function() {
+            toggle.checked = true;
+            input.required = ['amount', 'date'].includes(toggle.dataset.fieldToggle);
+        }));
+    });
+
+    saveBulkEditBtn.addEventListener('click', async function() {
+        const selectedIds = [...transactionCheckboxes]
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.value);
+        const changes = {};
+        let inputsAreValid = true;
+
+        document.querySelectorAll('[data-field-toggle]:checked').forEach(toggle => {
+            const field = toggle.dataset.fieldToggle;
+            const input = document.querySelector(`[data-field-input="${field}"]`);
+            if (!input.reportValidity()) {
+                inputsAreValid = false;
+                return;
+            }
+            changes[field] = input.value;
+        });
+
+        if (!selectedIds.length || !Object.keys(changes).length || !inputsAreValid) {
+            await window.showAppAlert('กรุณาเลือกรายการและฟิลด์ที่ต้องการแก้ไข', 'warning');
+            return;
+        }
+
+        saveBulkEditBtn.disabled = true;
+        try {
+            const response = await fetch('/users/batch-update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.getElementById('csrf_token').value
+                },
+                body: JSON.stringify({ ids: selectedIds, changes })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                await window.showAppAlert(data.message || `บันทึกไม่สำเร็จ (HTTP ${response.status})`, 'danger');
+                return;
+            }
+            await window.showAppAlert(`แก้ไข ${data.updated_count} รายการเรียบร้อยแล้ว`, 'success');
+            window.location.reload();
+        } catch (err) {
+            await window.showAppAlert('การเชื่อมต่อล้มเหลว กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง', 'danger');
+        } finally {
+            saveBulkEditBtn.disabled = false;
+        }
+    });
 
     batchForm.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -213,14 +452,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ items: items })
             });
 
-            const data = await res.json();
-            if (data.success) {
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.success) {
+                await window.showAppAlert(`บันทึก ${data.saved_count} รายการเรียบร้อยแล้ว`, 'success');
                 window.location.reload();
             } else {
-                alert('เกิดข้อผิดพลาด: ' + data.message);
+                await window.showAppAlert(data.message || `บันทึกไม่สำเร็จ (HTTP ${res.status})`, 'danger');
             }
         } catch (err) {
-            alert('การเชื่อมต่อล้มเหลว กรุณาลองใหม่อีกครั้ง');
+            await window.showAppAlert('การเชื่อมต่อล้มเหลว กรุณาลองใหม่อีกครั้ง', 'danger');
         }
     });
 });

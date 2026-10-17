@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบการเงินและบันทึกรายรับ-รายจ่าย</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -19,12 +19,21 @@
                 <span>Finance Manager</span>
             </a>
             {% if session.get('user_id') %}
-            <div class="d-flex align-items-center ms-auto">
-                <span class="text-white me-3 d-none d-md-inline small">
-                    <i class="fa-regular fa-user me-1"></i> {{ session.get('email') }}
+            <div class="d-flex align-items-center gap-2 ms-auto">
+                <span class="account-avatar-wrap" aria-label="รูปโปรไฟล์">
+                    {% if session.get('photo_file_id') %}
+                        <img class="account-avatar" src="{{ url_for('profile_photo', v=session.get('photo_updated_at')) }}" alt="" onerror="this.hidden=true; this.nextElementSibling.hidden=false">
+                    {% endif %}
+                    <span class="account-avatar-fallback" {% if session.get('photo_file_id') %}hidden{% endif %}>{{ (session.get('display_name') or session.get('email') or '?')[:1]|upper }}</span>
                 </span>
-                <a href="/logout" class="btn btn-light btn-sm fw-medium rounded-pill px-3 text-primary">
-                    <i class="fa-solid fa-right-from-bracket me-1"></i> ออกจากระบบ
+                <span class="text-white me-2 d-none d-md-inline small text-truncate account-email">
+                    {{ session.get('display_name') or session.get('email') }}
+                </span>
+                <a href="{{ url_for('profile') }}" class="btn btn-outline-light btn-sm fw-medium" aria-label="จัดการโปรไฟล์" title="จัดการโปรไฟล์">
+                    <i class="fa-solid fa-user-gear"></i><span class="d-none d-lg-inline ms-2">โปรไฟล์</span>
+                </a>
+                <a href="/logout" class="btn btn-light btn-sm fw-medium text-primary" aria-label="ออกจากระบบ" title="ออกจากระบบ">
+                    <i class="fa-solid fa-right-from-bracket"></i><span class="d-none d-sm-inline ms-1">ออกจากระบบ</span>
                 </a>
             </div>
             {% endif %}
@@ -34,12 +43,11 @@
     <main class="container my-3 my-md-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
+                        <div id="app-flash-messages" class="d-none" aria-hidden="true">
             {% for category, message in messages %}
-              <div class="alert alert-{{ category }} alert-dismissible fade show rounded-3 shadow-sm mb-3" role="alert">
-                <i class="fa-solid fa-circle-info me-2"></i> {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-              </div>
+                            <div data-category="{{ category }}">{{ message }}</div>
             {% endfor %}
+                        </div>
           {% endif %}
         {% endwith %}
 
@@ -47,6 +55,52 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+    (function() {
+        const iconByCategory = { success: 'success', danger: 'error', error: 'error', warning: 'warning', info: 'info' };
+        const titleByCategory = { success: 'สำเร็จ', danger: 'เกิดข้อผิดพลาด', error: 'เกิดข้อผิดพลาด', warning: 'ตรวจสอบข้อมูล', info: 'แจ้งให้ทราบ' };
+
+        window.showAppAlert = function(message, category = 'info') {
+            const icon = iconByCategory[category] || 'info';
+            if (!window.Swal) {
+                window.alert(message);
+                return Promise.resolve();
+            }
+            return window.Swal.fire({
+                icon: icon,
+                title: titleByCategory[category] || 'แจ้งให้ทราบ',
+                text: String(message),
+                confirmButtonText: 'ตกลง',
+                confirmButtonColor: '#0d6efd'
+            });
+        };
+
+        window.confirmAppAction = async function(options) {
+            if (!window.Swal) return window.confirm(`${options.title}\n${options.text}`);
+            const result = await window.Swal.fire({
+                icon: options.icon || 'warning',
+                title: options.title,
+                text: options.text,
+                showCancelButton: true,
+                confirmButtonText: options.confirmButtonText || 'ยืนยัน',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: options.confirmButtonColor || '#dc3545',
+                cancelButtonColor: '#6c757d',
+                reverseButtons: true,
+                focusCancel: true
+            });
+            return result.isConfirmed;
+        };
+
+        const flashMessages = document.querySelectorAll('#app-flash-messages [data-category]');
+        (async function showFlashMessages() {
+            for (const message of flashMessages) {
+                await window.showAppAlert(message.textContent.trim(), message.dataset.category);
+            }
+        })();
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
