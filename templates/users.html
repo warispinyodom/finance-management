@@ -1,39 +1,44 @@
 {% extends 'base.html' %}
 {% block content %}
 
-<!-- 1. ส่วนสรุปยอดเงินคงเหลือ (Responsive Summary Cards) -->
+<header class="dashboard-heading">
+    <div>
+        <span class="dashboard-eyebrow">FINANCE OVERVIEW</span>
+        <h1>ภาพรวมการเงิน</h1>
+    </div>
+    <div class="dashboard-heading-mark" aria-hidden="true"><i class="fa-solid fa-chart-pie"></i></div>
+</header>
+
 <div class="row g-3 mb-4">
     <div class="col-6 col-xl-4">
-        <div class="summary-card bg-success text-white shadow-sm">
-            <div class="small text-uppercase opacity-75 fw-medium">รายรับรวม</div>
-            <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(total_income) }}</div>
+        <div class="summary-card income-summary">
+            <div class="small fw-medium">รายรับรวม</div>
+            <div class="h2 fw-bold mb-0">฿{{ "{:,.2f}".format(total_income) }}</div>
             <i class="fa-solid fa-arrow-trend-up icon-bg"></i>
         </div>
     </div>
     <div class="col-6 col-xl-4">
-        <div class="summary-card bg-danger text-white shadow-sm">
-            <div class="small text-uppercase opacity-75 fw-medium">รายจ่ายรวม</div>
-            <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(total_expense) }}</div>
+        <div class="summary-card expense-summary">
+            <div class="small fw-medium">รายจ่ายรวม</div>
+            <div class="h2 fw-bold mb-0">฿{{ "{:,.2f}".format(total_expense) }}</div>
             <i class="fa-solid fa-arrow-trend-down icon-bg"></i>
         </div>
     </div>
     <div class="col-12 col-xl-4">
-        <div class="summary-card {% if balance >= 0 %}bg-primary{% else %}bg-warning text-dark{% endif %} text-white shadow-sm">
-            <div class="small text-uppercase opacity-75 fw-medium">ยอดเงินคงเหลือสุทธิ</div>
-            <div class="h2 fw-bold my-1">฿{{ "{:,.2f}".format(balance) }}</div>
+        <div class="summary-card balance-summary {% if balance < 0 %}negative-balance{% endif %}">
+            <div class="small fw-medium">ยอดเงินคงเหลือสุทธิ</div>
+            <div class="h2 fw-bold mb-0">฿{{ "{:,.2f}".format(balance) }}</div>
             <i class="fa-solid fa-scale-balanced icon-bg"></i>
         </div>
     </div>
 </div>
 
-<!-- 2. ฟอร์มบันทึกแบบหลายรายการ (Multi-item Batch Form) -->
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-white py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
         <div>
-            <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-pen-to-square text-primary me-2"></i>บันทึกรายการประจำวัน</h5>
-            <small class="text-muted d-block d-md-inline">รองรับการกรอกหลายรายการพร้อมกัน</small>
+            <h2 class="h5 mb-1 fw-bold text-dark"><i class="fa-solid fa-pen-to-square text-primary me-2"></i>บันทึกรายการ</h2>
         </div>
-        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3" id="add-row-btn">
+        <button type="button" class="btn btn-outline-primary btn-sm px-3" id="add-row-btn">
             <i class="fa-solid fa-plus me-1"></i> เพิ่มแถวรายการ
         </button>
     </div>
@@ -70,10 +75,9 @@
     </div>
 </div>
 
-<!-- 3. ประวัติการทำรายการ (Transaction History) -->
 <div class="card shadow-sm">
     <div class="card-header bg-white py-3 history-toolbar">
-        <h5 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i>ประวัติรายการล่าสุด</h5>
+        <h2 class="h5 mb-0 fw-bold text-dark"><i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i>ประวัติรายการ</h2>
         <div class="history-actions">
             <label class="visually-hidden" for="history-search">ค้นหาประวัติรายการ</label>
             <input class="form-control form-control-sm history-search" id="history-search" type="search" aria-label="ค้นหารายการ" placeholder="ค้นหารายการ" autocomplete="off">
