@@ -75,6 +75,35 @@
     </div>
 </div>
 
+<section class="card shadow-sm mb-4 debt-entry-card" aria-labelledby="debt-entry-title">
+    <div class="card-header bg-white py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+            <h2 class="h5 mb-1 fw-bold text-dark" id="debt-entry-title"><i class="fa-solid fa-layer-group text-danger me-2"></i>รวมยอดหนี้หลายทาง</h2>
+            <p class="small text-muted mb-0">แยกกรอกแต่ละเจ้าหนี้ ระบบจะบันทึกยอดรวมเป็นรายจ่ายรายการเดียว</p>
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="add-debt-row-btn">
+            <i class="fa-solid fa-plus me-1"></i>เพิ่มเจ้าหนี้
+        </button>
+    </div>
+    <div class="card-body">
+        <form id="debt-form" novalidate>
+            <div id="debt-items" class="debt-items"></div>
+            <div class="debt-form-footer">
+                <label class="debt-date-field" for="debt-date">วันที่บันทึก
+                    <input class="form-control" id="debt-date" type="date" required>
+                </label>
+                <div class="debt-total" aria-live="polite">
+                    <span>ยอดหนี้รวม</span>
+                    <strong id="debt-total">฿0.00</strong>
+                </div>
+                <button type="submit" class="btn btn-danger px-4" id="save-debt-btn">
+                    <i class="fa-solid fa-floppy-disk me-1"></i>บันทึกยอดหนี้
+                </button>
+            </div>
+        </form>
+    </div>
+</section>
+
 <div class="card shadow-sm">
     <div class="card-header bg-white py-3 history-toolbar">
         <h2 class="h5 mb-0 fw-bold text-dark"><i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i>ประวัติรายการ</h2>
@@ -122,7 +151,21 @@
                             {% endif %}
                         </td>
                         <td class="fw-medium" data-label="หมวดหมู่">{{ item.category }}</td>
-                        <td class="transaction-description" data-label="รายละเอียด">{{ item.description or '-' }}</td>
+                        <td class="transaction-description" data-label="รายละเอียด">
+                            {% if item.debt_items %}
+                                <span>{{ item.description }}</span>
+                                <details class="debt-history-details">
+                                    <summary>ดูหนี้ {{ item.debt_items|length }} ทาง</summary>
+                                    <ul>
+                                        {% for debt in item.debt_items %}
+                                        <li><span>{{ debt.name }}</span><strong>฿{{ "{:,.2f}".format(debt.amount) }}</strong></li>
+                                        {% endfor %}
+                                    </ul>
+                                </details>
+                            {% else %}
+                                {{ item.description or '-' }}
+                            {% endif %}
+                        </td>
                         <td class="d-none d-md-table-cell small text-muted transaction-payment" data-label="ช่องทาง">{{ item.payment_method }}</td>
                         <td class="text-end fw-bold text-nowrap transaction-amount {% if item.type == 'income' %}text-success{% else %}text-danger{% endif %}" data-label="จำนวนเงิน">
                             {% if item.type == 'income' %}+{% else %}-{% endif %}฿{{ "{:,.2f}".format(item.amount) }}
@@ -205,7 +248,96 @@ document.addEventListener('DOMContentLoaded', function() {
     const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
     const bulkEditPanel = document.getElementById('bulk-edit-panel');
     const saveBulkEditBtn = document.getElementById('save-bulk-edit-btn');
-    const today = new Date().toISOString().split('T')[0];
+    const currentDate = new Date();
+    const today = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+    const debtItems = document.getElementById('debt-items');
+    const debtForm = document.getElementById('debt-form');
+    const debtDate = document.getElementById('debt-date');
+    const debtTotal = document.getElementById('debt-total');
+    const addDebtRowBtn = document.getElementById('add-debt-row-btn');
+    const saveDebtBtn = document.getElementById('save-debt-btn');
+    const currencyFormatter = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function updateDebtTotal() {
+        const amounts = [...debtItems.querySelectorAll('.debt-amount-input')].map(input => Number(input.value) || 0);
+        debtTotal.textContent = `฿${currencyFormatter.format(amounts.reduce((sum, amount) => sum + amount, 0))}`;
+        debtItems.querySelectorAll('.remove-debt-row-btn').forEach(button => {
+            button.disabled = debtItems.children.length <= 2;
+        });
+        addDebtRowBtn.disabled = debtItems.children.length >= 50;
+    }
+
+    function createDebtRow() {
+        if (debtItems.children.length >= 50) return;
+        const row = document.createElement('div');
+        row.className = 'debt-entry-row';
+        row.innerHTML = `
+            <label class="debt-name-field">เจ้าหนี้ / รายการหนี้
+                <input class="form-control debt-name-input" type="text" maxlength="120" placeholder="เช่น บัตรเครดิตธนาคาร" required>
+            </label>
+            <label class="debt-amount-field">ยอดหนี้ (บาท)
+                <input class="form-control debt-amount-input" type="number" min="0.01" max="999999999999.99" step="0.01" inputmode="decimal" placeholder="0.00" required>
+            </label>
+            <button class="btn btn-outline-danger remove-debt-row-btn" type="button" aria-label="ลบรายการหนี้" title="ลบรายการหนี้">
+                <i class="fa-regular fa-trash-can" aria-hidden="true"></i>
+            </button>
+        `;
+        row.querySelector('.debt-amount-input').addEventListener('input', updateDebtTotal);
+        row.querySelector('.remove-debt-row-btn').addEventListener('click', function() {
+            if (debtItems.children.length > 2) {
+                row.remove();
+                updateDebtTotal();
+            }
+        });
+        debtItems.appendChild(row);
+        updateDebtTotal();
+    }
+
+    debtDate.value = today;
+    createDebtRow();
+    createDebtRow();
+    addDebtRowBtn.addEventListener('click', createDebtRow);
+
+    debtForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        if (!debtForm.reportValidity()) return;
+
+        const items = [...debtItems.querySelectorAll('.debt-entry-row')].map(row => ({
+            name: row.querySelector('.debt-name-input').value.trim(),
+            amount: row.querySelector('.debt-amount-input').value
+        }));
+        if (items.some(item => !item.name || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0)) {
+            await window.showAppAlert('กรุณาตรวจสอบชื่อเจ้าหนี้และยอดหนี้แต่ละรายการ', 'warning');
+            return;
+        }
+        if (items.reduce((sum, item) => sum + Number(item.amount), 0) > 999999999999.99) {
+            await window.showAppAlert('ยอดหนี้รวมสูงเกินจำนวนที่ระบบรองรับ', 'warning');
+            return;
+        }
+
+        saveDebtBtn.disabled = true;
+        try {
+            const response = await fetch('/users/debt-add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': document.getElementById('csrf_token').value
+                },
+                body: JSON.stringify({ items, date: debtDate.value })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) {
+                await window.showAppAlert(data.message || `บันทึกไม่สำเร็จ (HTTP ${response.status})`, 'danger');
+                return;
+            }
+            await window.showAppAlert(`บันทึกยอดหนี้รวม ฿${currencyFormatter.format(data.amount)} เรียบร้อยแล้ว`, 'success');
+            window.location.reload();
+        } catch (error) {
+            await window.showAppAlert('การเชื่อมต่อล้มเหลว กรุณาลองใหม่อีกครั้ง', 'danger');
+        } finally {
+            saveDebtBtn.disabled = false;
+        }
+    });
 
     function createRow() {
         const tr = document.createElement('tr');
@@ -302,7 +434,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('.transaction-row').forEach(row => {
         row.addEventListener('click', function(event) {
-            if (event.target.closest('input, button, a, form, label, select, textarea')) return;
+            if (event.target.closest('input, button, a, form, label, select, textarea, details, summary')) return;
             const checkbox = row.querySelector('.transaction-checkbox');
             checkbox.checked = !checkbox.checked;
             updateSelectionState();

@@ -3,6 +3,7 @@ import hashlib
 import os
 import secrets
 import datetime
+from decimal import Decimal, InvalidOperation
 import io
 import math
 import uuid
@@ -719,6 +720,76 @@ def batch_add_transactions():
 
     return jsonify({"success": True, "saved_count": len(updates)})
 
+@app.route('/users/debt-add', methods=['POST'])
+def add_debt_transaction():
+    if not is_authenticated():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+
+    if not verify_csrf():
+        return jsonify({"success": False, "message": "CSRF verification failed"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"success": False, "message": "ข้อมูลไม่ถูกต้อง"}), 400
+    debt_items = payload.get('items')
+    date_str = payload.get('date', datetime.date.today().isoformat())
+    if not isinstance(debt_items, list) or not 2 <= len(debt_items) <= 50:
+        return jsonify({"success": False, "message": "กรุณากรอกรายการหนี้อย่างน้อย 2 รายการ (สูงสุด 50 รายการ)"}), 400
+    if not isinstance(date_str, str):
+        return jsonify({"success": False, "message": "วันที่ไม่ถูกต้อง"}), 400
+
+    validated_items = []
+    total = Decimal('0')
+    maximum_amount = Decimal('999999999999.99')
+    for item in debt_items:
+        if not isinstance(item, dict):
+            return jsonify({"success": False, "message": "ข้อมูลรายการหนี้ไม่ถูกต้อง"}), 400
+        name = item.get('name')
+        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 120:
+            return jsonify({"success": False, "message": "กรุณาระบุชื่อเจ้าหนี้หรือรายการหนี้ไม่เกิน 120 ตัวอักษร"}), 400
+        try:
+            amount = Decimal(str(item.get('amount', '')))
+            if not amount.is_finite() or amount <= 0 or amount > maximum_amount or amount != amount.quantize(Decimal('0.01')):
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            return jsonify({"success": False, "message": "จำนวนเงินหนี้ต้องมากกว่า 0 และมีทศนิยมไม่เกิน 2 ตำแหน่ง"}), 400
+        total += amount
+        if total > maximum_amount:
+            return jsonify({"success": False, "message": "ยอดหนี้รวมสูงเกินจำนวนที่ระบบรองรับ"}), 400
+        validated_items.append({"name": name.strip(), "amount": float(amount)})
+
+    try:
+        datetime.date.fromisoformat(date_str)
+    except ValueError:
+        return jsonify({"success": False, "message": "วันที่ไม่ถูกต้อง"}), 400
+
+    transaction_id = uuid.uuid4().hex
+    transaction = {
+        "type": "expense",
+        "category": "หนี้สิน",
+        "description": f"หนี้หลายทาง ({len(validated_items)} รายการ)",
+        "amount": float(total),
+        "date": date_str,
+        "payment_method": "รวมรายการ",
+        "debt_items": validated_items,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }
+    try:
+        response = requests.patch(
+            f"{FIREBASE_DB_URL}/transactions/{session['user_id']}.json?auth={FIREBASE_DB_SECRET}",
+            json={transaction_id: transaction},
+            timeout=10
+        )
+    except requests.RequestException:
+        app.logger.exception('Firebase debt transaction save failed')
+        return jsonify({"success": False, "message": "เชื่อมต่อฐานข้อมูลไม่สำเร็จ กรุณาลองใหม่"}), 502
+
+    if not response.ok:
+        app.logger.error('Firebase debt transaction save rejected: status=%s body=%s', response.status_code, response.text)
+        return jsonify({"success": False, "message": "ฐานข้อมูลปฏิเสธการบันทึก กรุณาลองใหม่"}), 502
+
+    return jsonify({"success": True, "amount": float(total)})
+
 # API สำหรับแก้ไขหลายรายการพร้อมกัน (Batch Update)
 @app.route('/users/batch-update', methods=['POST'])
 def batch_update_transactions():
@@ -765,6 +836,25 @@ def batch_update_transactions():
 
     updates = {tx_id: changes for tx_id in set(transaction_ids)}
     user_id = session['user_id']
+    if {'amount', 'type'} & changes.keys():
+        try:
+            current_response = requests.get(
+                f"{FIREBASE_DB_URL}/transactions/{user_id}.json?auth={FIREBASE_DB_SECRET}",
+                timeout=10
+            )
+            if not current_response.ok:
+                return jsonify({"success": False, "message": "ตรวจสอบรายการเดิมไม่สำเร็จ กรุณาลองใหม่"}), 502
+            current_transactions = current_response.json() or {}
+        except requests.RequestException:
+            app.logger.exception('Firebase transaction validation request failed')
+            return jsonify({"success": False, "message": "เชื่อมต่อฐานข้อมูลไม่สำเร็จ กรุณาลองใหม่"}), 502
+        if any(
+            isinstance(current_transactions.get(tx_id), dict)
+            and current_transactions[tx_id].get('debt_items')
+            for tx_id in set(transaction_ids)
+        ):
+            return jsonify({"success": False, "message": "ชุดหนี้มีรายการย่อยประกอบ กรุณาลบแล้วบันทึกชุดหนี้ใหม่เพื่อเปลี่ยนประเภทหรือยอดรวม"}), 400
+
     try:
         response = requests.patch(
             f"{FIREBASE_DB_URL}/transactions/{user_id}.json?auth={FIREBASE_DB_SECRET}",
