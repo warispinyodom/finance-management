@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap');
 
 :root {
+    color-scheme: only light;
     --primary-color: #176b55;
     --success-color: #247b59;
     --danger-color: #c84e47;
@@ -439,6 +440,18 @@ main.container {
     min-width: 960px;
 }
 
+#batch-table tbody tr {
+    --bs-table-bg: #fff;
+    --bs-table-bg-state: transparent;
+    background-color: #fff;
+}
+
+#batch-table tbody td {
+    --bs-table-bg-state: transparent;
+    background-color: #fff !important;
+    box-shadow: none !important;
+}
+
 .history-table {
     min-width: 760px;
 }
@@ -520,12 +533,20 @@ main.container {
     cursor: pointer;
 }
 
-.history-table tbody .transaction-row:hover {
+.history-table tbody .transaction-row:not(.is-selected):hover {
     --bs-table-bg: #f7faff;
 }
 
 .history-table tbody .transaction-row.is-selected {
-    --bs-table-bg: #eef5ff;
+    --bs-table-bg: var(--surface-color);
+}
+
+.history-table tbody .transaction-row.is-selected > * {
+    --bs-table-bg-state: transparent;
+    --bs-table-bg-type: transparent;
+    --bs-table-accent-bg: transparent;
+    background-color: var(--surface-color) !important;
+    box-shadow: none !important;
 }
 
 .bulk-edit-grid {
@@ -856,11 +877,13 @@ main.container {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.65rem;
+        width: 100%;
         min-width: 0;
         padding: 0.8rem;
         border: 1px solid var(--border-color);
         border-radius: 8px;
         background: var(--surface-color);
+        box-shadow: none;
     }
 
     #batch-table tbody td {
@@ -869,6 +892,8 @@ main.container {
         min-width: 0;
         padding: 0;
         border: 0;
+        background-color: #fff !important;
+        box-shadow: none !important;
     }
 
     #batch-table tbody td::before {
@@ -885,6 +910,38 @@ main.container {
         grid-column: 1 / -1;
     }
 
+    #batch-table tbody td[data-label="ประเภท"] {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    #batch-table tbody td[data-label="หมวดหมู่"] {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    #batch-table tbody td[data-label="รายการ"] {
+        grid-row: 2;
+    }
+
+    #batch-table tbody td[data-label="จำนวนเงิน"] {
+        grid-column: 1;
+        grid-row: 3;
+    }
+
+    #batch-table tbody td[data-label="วันที่"] {
+        grid-column: 2;
+        grid-row: 3;
+    }
+
+    #batch-table tbody td[data-label="ช่องทาง"] {
+        grid-row: 4;
+    }
+
+    #batch-table tbody td[data-label="ลบแถว"] {
+        grid-row: 5;
+    }
+
     #batch-table tbody td[data-label="ลบแถว"] {
         flex-direction: row;
         align-items: center;
@@ -895,6 +952,11 @@ main.container {
     #batch-table .form-select {
         width: 100%;
         min-width: 0;
+        min-height: 44px;
+        border: 1px solid #cbd7cf;
+        border-radius: 7px;
+        background-color: #fff !important;
+        color: var(--text-color);
         font-size: 16px;
     }
 
@@ -925,6 +987,13 @@ main.container {
     .history-table tbody .transaction-row.is-selected {
         --bs-table-bg: var(--surface-color);
         --bs-table-bg-state: transparent;
+    }
+
+    .history-table tbody .transaction-row:hover > *,
+    .history-table tbody .transaction-row.is-selected > * {
+        --bs-table-bg-state: transparent;
+        background-color: var(--surface-color) !important;
+        box-shadow: none !important;
     }
 
     .history-table tbody tr[hidden],
