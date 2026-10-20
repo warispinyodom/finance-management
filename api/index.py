@@ -636,6 +636,7 @@ def users_dashboard():
     for key, item in raw_data.items():
         item['id'] = key
         amount = float(item.get('amount', 0))
+        item['amount'] = amount
         if item.get('type') == 'income':
             total_income += amount
         elif item.get('type') == 'expense':
