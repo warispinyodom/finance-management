@@ -372,6 +372,11 @@ main.container {
 .history-table {
     --bs-table-color: var(--text-color);
     --bs-table-border-color: #edf1ed;
+    min-width: 860px;
+}
+
+.table-responsive {
+    overscroll-behavior-x: contain;
 }
 
 .history-table thead th {
@@ -403,6 +408,7 @@ main.container {
     grid-template-columns: minmax(0, 1fr) minmax(180px, 240px) 44px;
     align-items: end;
     gap: 0.75rem;
+    min-width: 0;
     padding: 0.8rem;
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -412,6 +418,7 @@ main.container {
 .debt-entry-row label,
 .debt-date-field {
     display: grid;
+    min-width: 0;
     gap: 0.35rem;
     color: var(--muted-color);
     font-size: 0.8rem;
@@ -481,10 +488,62 @@ main.container {
     gap: 1rem;
 }
 
+.debt-history-details li span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .debt-history-details li strong {
     flex: 0 0 auto;
     color: var(--text-color);
     font-variant-numeric: tabular-nums;
+}
+
+.debt-edit-items {
+    display: grid;
+    max-height: min(60vh, 42rem);
+    gap: 0.75rem;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 0.1rem 0.35rem 0.1rem 0;
+    scrollbar-gutter: stable;
+}
+
+.bulk-debt-group {
+    display: grid;
+    min-width: 0;
+    gap: 0.65rem;
+    padding: 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: #fbfcfb;
+}
+
+.bulk-debt-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.bulk-debt-group .debt-total {
+    text-align: right;
+}
+
+.bulk-debt-group .debt-total strong {
+    font-size: 1.05rem;
+}
+
+.bulk-debt-group .add-bulk-debt-row-btn {
+    justify-self: start;
+}
+
+.bulk-shared-fields {
+    margin-top: 1rem;
+}
+
+.bulk-edit-actions {
+    flex-wrap: wrap;
 }
 
 .profile-heading h1 {
@@ -547,7 +606,7 @@ main.container {
 }
 
 .history-table {
-    min-width: 760px;
+    min-width: 860px;
 }
 
 .history-toolbar {
@@ -900,25 +959,43 @@ main.container {
 }
 
 @media (max-width: 768px) {
-    .debt-entry-row {
+    .debt-entry-row:not(.debt-edit-row) {
         grid-template-columns: minmax(0, 1fr) 44px;
-        gap: 0.55rem;
-        padding: 0.7rem;
     }
 
-    .debt-name-field {
+    .debt-entry-row:not(.debt-edit-row) .debt-name-field {
         grid-column: 1 / -1;
     }
 
-    .debt-amount-field {
+    .debt-entry-row:not(.debt-edit-row) .debt-amount-field {
         grid-column: 1;
         grid-row: 2;
     }
 
-    .remove-debt-row-btn {
+    .debt-entry-row:not(.debt-edit-row) .remove-debt-row-btn {
         grid-column: 2;
         grid-row: 2;
-        align-self: end;
+    }
+
+    .debt-edit-row {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 44px;
+        align-items: end;
+        gap: 0.5rem;
+        padding: 0.7rem;
+    }
+
+    .debt-edit-row label {
+        font-size: 0.74rem;
+    }
+
+    .debt-edit-items {
+        max-height: min(55vh, 36rem);
+    }
+
+    .remove-debt-row-btn {
+        width: 44px;
+        min-width: 44px;
+        height: 44px;
     }
 
     .debt-form-footer {
@@ -938,6 +1015,10 @@ main.container {
     .debt-form-footer > .btn {
         min-height: 44px;
         white-space: nowrap;
+    }
+
+    .bulk-edit-actions .btn {
+        flex: 1 1 140px;
     }
 
     .debt-history-details li {
@@ -1224,6 +1305,28 @@ main.container {
 
     .auth-card .card-body {
         padding: 0.75rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .debt-edit-row {
+        grid-template-columns: minmax(0, 1fr) 44px;
+    }
+
+    .debt-edit-row .debt-name-field {
+        grid-column: 1 / -1;
+    }
+
+    .debt-edit-row .debt-amount-field {
+        grid-column: 1;
+    }
+
+    .debt-edit-row .remove-debt-row-btn {
+        grid-column: 2;
+    }
+
+    .debt-edit-row .form-control {
+        min-width: 0;
     }
 }
 
