@@ -166,10 +166,34 @@
         <div class="history-actions">
             <label class="visually-hidden" for="history-search">ค้นหาประวัติรายการ</label>
             <input class="form-control form-control-sm history-search" id="history-search" type="search" aria-label="ค้นหารายการ" placeholder="ค้นหารายการ" autocomplete="off">
+            <label class="visually-hidden" for="history-type-filter">กรองตามประเภท</label>
+            <select class="form-select form-select-sm history-filter" id="history-type-filter" aria-label="กรองตามประเภท">
+                <option value="">ทุกรายการ</option>
+                <option value="income">รายรับ</option>
+                <option value="expense">รายจ่าย</option>
+            </select>
+            <label class="visually-hidden" for="history-category-filter">กรองตามหมวดหมู่</label>
+            <select class="form-select form-select-sm history-filter" id="history-category-filter" aria-label="กรองตามหมวดหมู่">
+                <option value="">ทุกหมวดหมู่</option>
+            </select>
+            <label class="visually-hidden" for="history-date-from">ตั้งแต่วันที่</label>
+            <input class="form-control form-control-sm history-date-filter" id="history-date-from" type="date" aria-label="กรองตั้งแต่วันที่">
+            <label class="visually-hidden" for="history-date-to">ถึงวันที่</label>
+            <input class="form-control form-control-sm history-date-filter" id="history-date-to" type="date" aria-label="กรองถึงวันที่">
+            <label class="visually-hidden" for="history-sort">เรียงรายการตาม</label>
+            <select class="form-select form-select-sm history-filter" id="history-sort" aria-label="เรียงรายการตาม">
+                <option value="date-desc">วันที่ล่าสุด</option>
+                <option value="date-asc">วันที่เก่าสุด</option>
+                <option value="income-first">รายรับก่อน</option>
+                <option value="expense-first">รายจ่ายก่อน</option>
+                <option value="amount-desc">จำนวนเงินมากไปน้อย</option>
+                <option value="amount-asc">จำนวนเงินน้อยไปมาก</option>
+            </select>
             <label class="form-check mobile-select-all d-md-none">
                 <input class="form-check-input" id="select-all-transactions-mobile" type="checkbox">
                 <span class="form-check-label">เลือกทั้งหมด</span>
             </label>
+            <span class="small text-muted" id="history-result-count" aria-live="polite"></span>
             <span class="small text-muted" id="selected-count" aria-live="polite">เลือก 0 รายการ</span>
             <button type="button" class="btn btn-outline-primary btn-sm" id="bulk-edit-btn" disabled>
                 <i class="fa-solid fa-pen-to-square me-1"></i>แก้ไขรายการที่เลือก
@@ -196,7 +220,7 @@
                 </thead>
                 <tbody>
                     {% for item in transactions %}
-                    <tr class="transaction-row">
+                    <tr class="transaction-row" data-type="{{ item.type }}" data-category="{{ item.category or '' }}" data-date="{{ item.date }}" data-amount="{{ item.amount }}">
                         <td class="text-center transaction-select-cell"><input class="form-check-input transaction-checkbox" type="checkbox" value="{{ item.id }}" aria-label="เลือกรายการ {{ item.description or item.category }}"></td>
                         <td class="text-nowrap small" data-label="วันที่">{{ item.date }}</td>
                         <td data-label="ประเภท">
@@ -273,7 +297,7 @@
                     </tr>
                     {% endfor %}
                     <tr class="search-empty-row" hidden>
-                        <td colspan="8" class="text-center text-muted py-4">ไม่พบรายการที่ตรงกับคำค้น</td>
+                        <td colspan="8" class="text-center text-muted py-4">ไม่พบรายการที่ตรงกับตัวกรอง</td>
                     </tr>
                 </tbody>
             </table>
@@ -351,6 +375,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllMobileTransactions = document.getElementById('select-all-transactions-mobile');
     const selectedCount = document.getElementById('selected-count');
     const historySearch = document.getElementById('history-search');
+    const historyTypeFilter = document.getElementById('history-type-filter');
+    const historyCategoryFilter = document.getElementById('history-category-filter');
+    const historyDateFrom = document.getElementById('history-date-from');
+    const historyDateTo = document.getElementById('history-date-to');
+    const historySort = document.getElementById('history-sort');
+    const historyResultCount = document.getElementById('history-result-count');
+    const transactionRows = [...document.querySelectorAll('.transaction-row')];
+    const transactionTableBody = document.querySelector('.history-table tbody');
     const searchEmptyRow = document.querySelector('.search-empty-row');
     const bulkEditBtn = document.getElementById('bulk-edit-btn');
     const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
@@ -375,6 +407,49 @@ document.addEventListener('DOMContentLoaded', function() {
     let pendingBatchRequest = null;
     let isDebtSaving = false;
     let pendingDebtRequest = null;
+
+    [...new Set(transactionRows.map(row => row.dataset.category).filter(Boolean))]
+        .sort((first, second) => first.localeCompare(second, 'th'))
+        .forEach(category => historyCategoryFilter.add(new Option(category, category)));
+
+    function applyHistoryFilters() {
+        const query = historySearch.value.trim().toLocaleLowerCase();
+        const type = historyTypeFilter.value;
+        const category = historyCategoryFilter.value;
+        const dateFrom = historyDateFrom.value;
+        const dateTo = historyDateTo.value;
+
+        const matchingRows = transactionRows.filter(row => {
+            const matchesSearch = row.textContent.toLocaleLowerCase().includes(query);
+            const matchesType = !type || row.dataset.type === type;
+            const matchesCategory = !category || row.dataset.category === category;
+            const matchesDateFrom = !dateFrom || row.dataset.date >= dateFrom;
+            const matchesDateTo = !dateTo || row.dataset.date <= dateTo;
+            const isVisible = matchesSearch && matchesType && matchesCategory && matchesDateFrom && matchesDateTo;
+            row.hidden = !isVisible;
+            return isVisible;
+        });
+
+        const sortOrder = historySort.value;
+        matchingRows.sort((first, second) => {
+            const dateDifference = first.dataset.date.localeCompare(second.dataset.date);
+            const amountDifference = Number(first.dataset.amount) - Number(second.dataset.amount);
+            if (sortOrder === 'income-first' || sortOrder === 'expense-first') {
+                const preferredType = sortOrder === 'income-first' ? 'income' : 'expense';
+                const typeDifference = Number(second.dataset.type === preferredType) - Number(first.dataset.type === preferredType);
+                return typeDifference || -dateDifference;
+            }
+            if (sortOrder === 'date-asc') return dateDifference;
+            if (sortOrder === 'amount-desc') return -amountDifference || -dateDifference;
+            if (sortOrder === 'amount-asc') return amountDifference || -dateDifference;
+            return -dateDifference;
+        });
+        matchingRows.forEach(row => transactionTableBody.appendChild(row));
+
+        searchEmptyRow.hidden = !transactionRows.length || matchingRows.length > 0;
+        historyResultCount.textContent = `แสดง ${matchingRows.length} จาก ${transactionRows.length} รายการ`;
+        updateSelectionState();
+    }
 
     function createRequestId() {
         if (crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
@@ -714,16 +789,10 @@ document.addEventListener('DOMContentLoaded', function() {
         selectAllMobileTransactions.indeterminate = selectAllTransactions.indeterminate;
     }
 
-    historySearch.addEventListener('input', function() {
-        const query = historySearch.value.trim().toLocaleLowerCase();
-        let visibleCount = 0;
-        document.querySelectorAll('.transaction-row').forEach(row => {
-            row.hidden = !row.textContent.toLocaleLowerCase().includes(query);
-            if (!row.hidden) visibleCount += 1;
-        });
-        searchEmptyRow.hidden = !transactionCheckboxes.length || visibleCount > 0;
-        updateSelectionState();
-    });
+    [historySearch, historyTypeFilter, historyCategoryFilter, historyDateFrom, historyDateTo]
+        .forEach(control => control.addEventListener(control === historySearch ? 'input' : 'change', applyHistoryFilters));
+    historySort.addEventListener('change', applyHistoryFilters);
+    applyHistoryFilters();
 
     transactionCheckboxes.forEach(checkbox => checkbox.addEventListener('change', updateSelectionState));
     document.querySelectorAll('.transaction-delete-form').forEach(form => {
