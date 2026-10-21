@@ -33,13 +33,58 @@
     </div>
 </div>
 
+{% if debt_reminders %}
+<section class="card debt-reminder-card mb-4" aria-labelledby="debt-reminders-title">
+    <div class="card-header">
+        <div>
+            <span class="debt-reminder-eyebrow">DEBT TRACKER</span>
+            <h2 class="h5 mb-1 fw-bold" id="debt-reminders-title">ติดตามกำหนดชำระหนี้</h2>
+            <p class="small mb-0">เตือนตามวันที่เริ่มต้นของหนี้แต่ละรายการ และแสดงวันคาดว่าจะหมดตามระยะเวลาที่วางแผน</p>
+        </div>
+        <span class="debt-reminder-count">{{ debt_reminders|length }} รายการที่ยังไม่ปิด</span>
+    </div>
+    <div class="debt-reminder-list">
+        {% for debt in debt_reminders %}
+        <article class="debt-reminder-item {% if debt.monthly_due %}is-due{% endif %}">
+            <span class="debt-reminder-icon" aria-hidden="true">
+                <i class="fa-solid {% if debt.monthly_due %}fa-bell{% else %}fa-calendar-check{% endif %}"></i>
+            </span>
+            <div class="debt-reminder-info">
+                <strong>{{ debt.name }}</strong>
+                <span>
+                    {% if debt.plan_overdue %}เลยกำหนดหมดหนี้ตามแผนแล้ว · {% endif %}
+                    {% if debt.monthly_due %}ถึงรอบเตือนเดือนนี้แล้ว{% else %}เตือนรอบถัดไป {{ debt.monthly_due_date }}{% endif %}
+                    · วันคาดว่าหมด {{ debt.estimated_end_date }}
+                </span>
+                <div class="debt-progress-summary">
+                    <div class="debt-progress-track {% if debt.plan_overdue %}is-overdue{% endif %}"
+                         role="progressbar" aria-label="ความคืบหน้าตามระยะเวลาหนี้ของ {{ debt.name }}"
+                         aria-valuemin="0" aria-valuemax="{{ debt.duration_months }}"
+                         aria-valuenow="{{ debt.elapsed_months }}"
+                         aria-valuetext="ผ่าน {{ debt.elapsed_months }} จาก {{ debt.duration_months }} เดือน เหลือ {{ debt.remaining_months }} เดือน">
+                        <span style="width: {{ debt.progress_percent }}%"></span>
+                    </div>
+                    <small>ผ่าน {{ debt.elapsed_months }}/{{ debt.duration_months }} งวดตามแผน · เหลือ <strong>{{ debt.remaining_months }} เดือน</strong></small>
+                </div>
+            </div>
+            <strong class="debt-reminder-amount">฿{{ "{:,.2f}".format(debt.amount) }}</strong>
+            <a class="btn btn-sm btn-outline-primary btn-icon-center" href="#debt-{{ debt.transaction_id }}">
+                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i><span>ดูรายการ</span>
+            </a>
+        </article>
+        {% endfor %}
+    </div>
+    <p class="debt-reminder-note"><i class="fa-solid fa-circle-info me-1" aria-hidden="true"></i>หลอดแสดงความคืบหน้าตามเดือนที่วางแผน ไม่ใช่ประวัติการชำระจริง วันหมดเป็นเพียงการคาดการณ์ และระบบจะไม่ถือว่าหนี้หมดจนกว่าคุณจะกดยืนยันเอง</p>
+</section>
+{% endif %}
+
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-white py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
         <div>
             <h2 class="h5 mb-1 fw-bold text-dark"><i class="fa-solid fa-pen-to-square text-primary me-2"></i>บันทึกรายการ</h2>
         </div>
-        <button type="button" class="btn btn-outline-primary btn-sm px-3" id="add-row-btn">
-            <i class="fa-solid fa-plus me-1"></i> เพิ่มแถวรายการ
+        <button type="button" class="btn btn-outline-primary btn-sm px-3 add-row-btn btn-icon-center">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i><span>เพิ่มรายการ</span>
         </button>
     </div>
     <div class="card-body p-2 p-md-3">
@@ -66,9 +111,14 @@
                 </table>
             </div>
 
+            <div class="d-flex justify-content-center mt-3">
+                <button type="button" class="btn btn-outline-primary btn-sm px-4 add-row-btn btn-icon-center">
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i><span>เพิ่มรายการ</span>
+                </button>
+            </div>
             <div class="d-flex justify-content-end mt-3 pt-2 border-top">
-                <button type="submit" class="btn btn-primary btn-mobile-full rounded-pill px-4 py-2 fw-medium">
-                    <i class="fa-solid fa-floppy-disk me-1"></i> บันทึกข้อมูลทั้งหมด
+                <button type="submit" class="btn btn-primary btn-mobile-full rounded-pill px-4 py-2 fw-medium btn-icon-center" id="save-batch-btn">
+                    <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>บันทึกข้อมูลทั้งหมด</span>
                 </button>
             </div>
         </form>
@@ -79,25 +129,31 @@
     <div class="card-header bg-white py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
         <div>
             <h2 class="h5 mb-1 fw-bold text-dark" id="debt-entry-title"><i class="fa-solid fa-layer-group text-danger me-2"></i>รวมยอดหนี้หลายทาง</h2>
-            <p class="small text-muted mb-0">แยกกรอกแต่ละเจ้าหนี้ ระบบจะบันทึกยอดรวมเป็นรายจ่ายรายการเดียว</p>
+            <p class="small text-muted mb-0">แยกกรอกแต่ละเจ้าหนี้ ระบบบันทึกยอดรวมเป็นรายจ่ายรายการเดียว และเตือนตามรอบรายเดือนจนกว่าจะยืนยันปิดหนี้</p>
         </div>
-        <button type="button" class="btn btn-outline-primary btn-sm" id="add-debt-row-btn">
-            <i class="fa-solid fa-plus me-1"></i>เพิ่มเจ้าหนี้
+        <button type="button" class="btn btn-outline-primary btn-sm add-debt-row-btn btn-icon-center">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i><span>เพิ่มเจ้าหนี้</span>
         </button>
     </div>
     <div class="card-body">
         <form id="debt-form" novalidate>
             <div id="debt-items" class="debt-items"></div>
+            <p class="debt-schedule-help"><i class="fa-regular fa-calendar me-1" aria-hidden="true"></i>กำหนดระยะเวลาเป็นเดือนแยกแต่ละหนี้ ระบบคาดการณ์วันหมดจากวันที่เริ่มต้น และเตือนทุกเดือนในวันเดียวกัน (ถ้าเดือนไหนไม่มีวันดังกล่าว จะใช้วันสุดท้ายของเดือน)</p>
+            <div class="d-flex justify-content-center mt-3">
+                <button type="button" class="btn btn-outline-primary btn-sm px-4 add-debt-row-btn btn-icon-center">
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i><span>เพิ่มเจ้าหนี้</span>
+                </button>
+            </div>
             <div class="debt-form-footer">
-                <label class="debt-date-field" for="debt-date">วันที่บันทึก
+                <label class="debt-date-field" for="debt-date">วันที่เริ่มติดตามหนี้
                     <input class="form-control" id="debt-date" type="date" required>
                 </label>
                 <div class="debt-total" aria-live="polite">
                     <span>ยอดหนี้รวม</span>
                     <strong id="debt-total">฿0.00</strong>
                 </div>
-                <button type="submit" class="btn btn-danger px-4" id="save-debt-btn">
-                    <i class="fa-solid fa-floppy-disk me-1"></i>บันทึกยอดหนี้
+                <button type="submit" class="btn btn-danger px-4 btn-icon-center" id="save-debt-btn">
+                    <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>บันทึกยอดหนี้</span>
                 </button>
             </div>
         </form>
@@ -151,14 +207,39 @@
                             {% endif %}
                         </td>
                         <td class="fw-medium" data-label="หมวดหมู่">{{ item.category }}</td>
-                        <td class="transaction-description" data-label="รายละเอียด">
+                        <td class="transaction-description" data-label="รายละเอียด" {% if item.debt_items %}id="debt-{{ item.id }}"{% endif %}>
                             {% if item.debt_items %}
                                 <span>{{ item.description }}</span>
                                 <details class="debt-history-details">
-                                    <summary>ดูหนี้ {{ item.debt_items|length }} ทาง</summary>
+                                    <summary>ดูหนี้ {{ item.debt_items|length }} ทาง · ปิดแล้ว {{ item.debt_items|selectattr('is_paid')|list|length }}/{{ item.debt_items|length }}</summary>
                                     <ul>
                                         {% for debt in item.debt_items %}
-                                        <li><span>{{ debt.name }}</span><strong>฿{{ "{:,.2f}".format(debt.amount) }}</strong></li>
+                                        <li class="debt-history-item">
+                                            <div>
+                                                <span>{{ debt.name }}</span>
+                                                <small>
+                                                    {% if debt.duration_months %}
+                                                        {{ debt.duration_months }} เดือน · คาดว่าหมด {{ debt.estimated_end_date }}
+                                                        {% if not debt.is_paid %} · เหลือ {{ debt.remaining_months }} เดือน{% endif %}
+                                                    {% else %}
+                                                        ยังไม่ได้กำหนดระยะเวลา
+                                                    {% endif %}
+                                                    · {% if debt.is_paid %}ยืนยันปิดหนี้แล้ว {{ debt.paid_at or '' }}{% elif debt.plan_overdue %}เลยกำหนดตามแผน · ยังไม่ยืนยันปิดหนี้{% else %}กำลังติดตาม{% endif %}
+                                                </small>
+                                            </div>
+                                            <div class="debt-history-item-actions">
+                                                <strong>฿{{ "{:,.2f}".format(debt.amount) }}</strong>
+                                                <button type="button" class="btn btn-sm btn-icon-center {% if debt.is_paid %}btn-outline-secondary{% else %}btn-outline-success{% endif %} debt-status-toggle"
+                                                        data-debt-id="{{ item.id }}" data-item-id="{{ debt.item_id }}"
+                                                        data-is-paid="{{ 'true' if debt.is_paid else 'false' }}">
+                                                    {% if debt.is_paid %}
+                                                        <i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>ยกเลิกยืนยัน</span>
+                                                    {% else %}
+                                                        <i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>ยืนยันปิดหนี้</span>
+                                                    {% endif %}
+                                                </button>
+                                            </div>
+                                        </li>
                                         {% endfor %}
                                     </ul>
                                 </details>
@@ -250,7 +331,9 @@
         </div>
         <div class="d-flex justify-content-end gap-2 mt-4 bulk-edit-actions">
             <button type="button" class="btn btn-light" id="cancel-bulk-edit-btn">ยกเลิก</button>
-            <button type="button" class="btn btn-primary" id="save-bulk-edit-btn"><i class="fa-solid fa-floppy-disk me-1"></i>บันทึกการแก้ไข</button>
+            <button type="button" class="btn btn-primary btn-icon-center" id="save-bulk-edit-btn">
+                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i><span>บันทึกการแก้ไข</span>
+            </button>
         </div>
     </div>
 </div>
@@ -260,8 +343,9 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('batch-tbody');
-    const addRowBtn = document.getElementById('add-row-btn');
+    const addRowButtons = document.querySelectorAll('.add-row-btn');
     const batchForm = document.getElementById('batch-form');
+    const saveBatchBtn = document.getElementById('save-batch-btn');
     const transactionCheckboxes = document.querySelectorAll('.transaction-checkbox');
     const selectAllTransactions = document.getElementById('select-all-transactions');
     const selectAllMobileTransactions = document.getElementById('select-all-transactions-mobile');
@@ -279,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const debtForm = document.getElementById('debt-form');
     const debtDate = document.getElementById('debt-date');
     const debtTotal = document.getElementById('debt-total');
-    const addDebtRowBtn = document.getElementById('add-debt-row-btn');
+    const addDebtRowButtons = document.querySelectorAll('.add-debt-row-btn');
     const saveDebtBtn = document.getElementById('save-debt-btn');
     const bulkEditGuidance = document.getElementById('bulk-edit-guidance');
     const bulkStandardSection = document.getElementById('bulk-standard-section');
@@ -287,6 +371,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const bulkDebtSection = document.getElementById('bulk-debt-section');
     const selectedDebtEditors = document.getElementById('selected-debt-editors');
     const currencyFormatter = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let isBatchSaving = false;
+    let pendingBatchRequest = null;
+    let isDebtSaving = false;
+    let pendingDebtRequest = null;
+
+    function createRequestId() {
+        if (crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+    }
 
     function updateDebtTotal() {
         const amounts = [...debtItems.querySelectorAll('.debt-amount-input')].map(input => Number(input.value) || 0);
@@ -294,7 +388,9 @@ document.addEventListener('DOMContentLoaded', function() {
         debtItems.querySelectorAll('.remove-debt-row-btn').forEach(button => {
             button.disabled = debtItems.children.length <= 2;
         });
-        addDebtRowBtn.disabled = debtItems.children.length >= 50;
+        addDebtRowButtons.forEach(button => {
+            button.disabled = debtItems.children.length >= 50;
+        });
     }
 
     function createDebtRow() {
@@ -307,6 +403,9 @@ document.addEventListener('DOMContentLoaded', function() {
             </label>
             <label class="debt-amount-field">ยอดหนี้ (บาท)
                 <input class="form-control debt-amount-input" type="number" min="0.01" max="999999999999.99" step="0.01" inputmode="decimal" placeholder="0.00" required>
+            </label>
+            <label class="debt-duration-field">ระยะเวลา (เดือน)
+                <input class="form-control debt-duration-input" type="number" min="1" max="600" step="1" inputmode="numeric" placeholder="เช่น 12" required>
             </label>
             <button class="btn btn-outline-danger remove-debt-row-btn" type="button" aria-label="ลบรายการหนี้" title="ลบรายการหนี้">
                 <i class="fa-regular fa-trash-can" aria-hidden="true"></i>
@@ -326,18 +425,27 @@ document.addEventListener('DOMContentLoaded', function() {
     debtDate.value = today;
     createDebtRow();
     createDebtRow();
-    addDebtRowBtn.addEventListener('click', createDebtRow);
+    addDebtRowButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            createDebtRow();
+            debtItems.lastElementChild.querySelector('.debt-name-input').focus();
+        });
+    });
 
     debtForm.addEventListener('submit', async function(event) {
         event.preventDefault();
+        if (isDebtSaving) return;
         if (!debtForm.reportValidity()) return;
 
         const items = [...debtItems.querySelectorAll('.debt-entry-row')].map(row => ({
             name: row.querySelector('.debt-name-input').value.trim(),
-            amount: row.querySelector('.debt-amount-input').value
+            amount: row.querySelector('.debt-amount-input').value,
+            duration_months: row.querySelector('.debt-duration-input').value
         }));
-        if (items.some(item => !item.name || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0)) {
-            await window.showAppAlert('กรุณาตรวจสอบชื่อเจ้าหนี้และยอดหนี้แต่ละรายการ', 'warning');
+        if (items.some(item => !item.name || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0
+            || !Number.isInteger(Number(item.duration_months)) || Number(item.duration_months) < 1
+            || Number(item.duration_months) > 600)) {
+            await window.showAppAlert('กรุณาตรวจสอบชื่อ ยอดหนี้ และระยะเวลา 1–600 เดือนของแต่ละรายการ', 'warning');
             return;
         }
         if (items.reduce((sum, item) => sum + Number(item.amount), 0) > 999999999999.99) {
@@ -345,7 +453,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        const debtRequestKey = JSON.stringify({ items, date: debtDate.value });
+        if (!pendingDebtRequest || pendingDebtRequest.key !== debtRequestKey) {
+            pendingDebtRequest = { key: debtRequestKey, requestId: createRequestId() };
+        }
+        isDebtSaving = true;
         saveDebtBtn.disabled = true;
+        addDebtRowButtons.forEach(button => {
+            button.disabled = true;
+        });
         try {
             const response = await fetch('/users/debt-add', {
                 method: 'POST',
@@ -353,19 +469,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': document.getElementById('csrf_token').value
                 },
-                body: JSON.stringify({ items, date: debtDate.value })
+                body: JSON.stringify({
+                    items,
+                    date: debtDate.value,
+                    request_id: pendingDebtRequest.requestId
+                })
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.success) {
                 await window.showAppAlert(data.message || `บันทึกไม่สำเร็จ (HTTP ${response.status})`, 'danger');
                 return;
             }
+            pendingDebtRequest = null;
             await window.showAppAlert(`บันทึกยอดหนี้รวม ฿${currencyFormatter.format(data.amount)} เรียบร้อยแล้ว`, 'success');
             window.location.reload();
         } catch (error) {
             await window.showAppAlert('การเชื่อมต่อล้มเหลว กรุณาลองใหม่อีกครั้ง', 'danger');
         } finally {
+            isDebtSaving = false;
             saveDebtBtn.disabled = false;
+            updateDebtTotal();
         }
     });
 
@@ -418,7 +541,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // เริ่มด้วยหนึ่งแถว แล้วเพิ่มได้ตามจำนวนรายการ
     createRow();
 
-    addRowBtn.addEventListener('click', createRow);
+    addRowButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            createRow();
+            tbody.lastElementChild.querySelector('.desc-input').focus();
+        });
+    });
 
     function updateBulkDebtGroup(group) {
         const rows = [...group.querySelectorAll('.debt-edit-row')];
@@ -433,11 +561,12 @@ document.addEventListener('DOMContentLoaded', function() {
         group.querySelector('.add-bulk-debt-row-btn').disabled = rows.length >= 50;
     }
 
-    function addBulkDebtRow(group, item = { name: '', amount: '' }) {
+    function addBulkDebtRow(group, item = { name: '', amount: '', duration_months: '' }) {
         const itemsContainer = group.querySelector('.bulk-debt-items');
         if (itemsContainer.children.length >= 50) return;
         const row = document.createElement('div');
         row.className = 'debt-entry-row debt-edit-row';
+        const isNewItem = !item.item_id;
         row.innerHTML = `
             <label class="debt-name-field">เจ้าหนี้ / รายการหนี้
                 <input class="form-control debt-name-input" type="text" maxlength="120" required>
@@ -445,15 +574,22 @@ document.addEventListener('DOMContentLoaded', function() {
             <label class="debt-amount-field">ยอดหนี้ (บาท)
                 <input class="form-control debt-amount-input" type="number" min="0.01" max="999999999999.99" step="0.01" inputmode="decimal" required>
             </label>
+            <label class="debt-duration-field">ระยะเวลา (เดือน)
+                <input class="form-control debt-duration-input" type="number" min="1" max="600" step="1" inputmode="numeric" required>
+            </label>
             <button class="btn btn-outline-danger remove-debt-row-btn" type="button" aria-label="ลบรายการหนี้" title="ลบรายการหนี้">
                 <i class="fa-regular fa-trash-can" aria-hidden="true"></i>
             </button>
         `;
         row.querySelector('.debt-name-input').value = item.name;
         row.querySelector('.debt-amount-input').value = item.amount;
+        row.dataset.itemId = item.item_id || createRequestId();
+        row.dataset.isNewItem = isNewItem ? 'true' : 'false';
+        row.querySelector('.debt-duration-input').value = item.duration_months || '';
         row.querySelector('.debt-amount-input').addEventListener('input', function() {
             updateBulkDebtGroup(group);
         });
+        row.querySelector('.debt-duration-input').required = isNewItem && !item.duration_months;
         row.querySelector('.remove-debt-row-btn').addEventListener('click', function() {
             if (itemsContainer.children.length > 2) {
                 row.remove();
@@ -480,14 +616,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
             <div class="debt-items bulk-debt-items"></div>
-            <button type="button" class="btn btn-outline-primary btn-sm add-bulk-debt-row-btn">
-                <i class="fa-solid fa-plus me-1"></i>เพิ่มเจ้าหนี้
+            <button type="button" class="btn btn-outline-primary btn-sm add-bulk-debt-row-btn btn-icon-center">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i><span>เพิ่มเจ้าหนี้</span>
             </button>
         `;
         group.querySelector('h6').textContent = `${button.getAttribute('aria-label').replace('แก้ไขชุดหนี้ ', '')} · ${button.dataset.debtDate}`;
         items.forEach(item => addBulkDebtRow(group, item));
         group.querySelector('.add-bulk-debt-row-btn').addEventListener('click', function() {
             addBulkDebtRow(group);
+            group.querySelector('.bulk-debt-items .debt-edit-row:last-child .debt-name-input').focus();
         });
         return group;
     }
@@ -681,6 +818,52 @@ document.addEventListener('DOMContentLoaded', function() {
         }));
     });
 
+    document.querySelectorAll('.debt-status-toggle').forEach(button => {
+        button.addEventListener('click', async function() {
+            if (button.disabled) return;
+            const isPaid = button.dataset.isPaid !== 'true';
+            const confirmed = await window.confirmAppAction({
+                title: isPaid ? 'ยืนยันว่าปิดหนี้รายการนี้แล้ว?' : 'ยกเลิกการยืนยันปิดหนี้?',
+                text: isPaid
+                    ? 'ระบบจะบันทึกสถานะปิดหนี้ตามที่คุณยืนยัน โดยไม่เปลี่ยนยอดรายการย้อนหลัง'
+                    : 'รายการนี้จะกลับมาอยู่ในรายการติดตามและแจ้งเตือนตามกำหนด',
+                confirmButtonText: isPaid ? 'ยืนยันปิดหนี้' : 'กลับมาติดตาม'
+            });
+            if (!confirmed) return;
+
+            button.disabled = true;
+            try {
+                const response = await fetch(
+                    `/users/debt-status/${encodeURIComponent(button.dataset.debtId)}/${encodeURIComponent(button.dataset.itemId)}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': document.getElementById('csrf_token').value
+                        },
+                        body: JSON.stringify({ is_paid: isPaid })
+                    }
+                );
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    await window.showAppAlert(data.message || `บันทึกสถานะไม่สำเร็จ (HTTP ${response.status})`, 'danger');
+                    return;
+                }
+                await window.showAppAlert(
+                    isPaid
+                        ? 'บันทึกแล้วว่าคุณยืนยันปิดหนี้รายการนี้ สถานะและวันที่ปิดถูกเก็บไว้ในประวัติ'
+                        : 'ยกเลิกการยืนยันแล้ว รายการนี้กลับมาอยู่ในระบบติดตามหนี้',
+                    'success'
+                );
+                window.location.reload();
+            } catch (error) {
+                await window.showAppAlert('เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่อีกครั้ง', 'danger');
+            } finally {
+                button.disabled = false;
+            }
+        });
+    });
+
     saveBulkEditBtn.addEventListener('click', async function() {
         const selectedIds = [...transactionCheckboxes]
             .filter(checkbox => checkbox.checked)
@@ -702,15 +885,21 @@ document.addEventListener('DOMContentLoaded', function() {
         selectedDebtEditors.querySelectorAll('.bulk-debt-group').forEach(group => {
             const items = [...group.querySelectorAll('.debt-edit-row')].map(row => ({
                 name: row.querySelector('.debt-name-input').value.trim(),
-                amount: row.querySelector('.debt-amount-input').value
+                amount: row.querySelector('.debt-amount-input').value,
+                item_id: row.dataset.itemId,
+                is_new: row.dataset.isNewItem === 'true',
+                duration_months: row.querySelector('.debt-duration-input').value
             }));
             if (items.length < 2 || items.length > 50 || items.some(item => (
                 !item.name || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0
+                || (item.is_new && !item.duration_months)
+                || (item.duration_months !== '' && (!Number.isInteger(Number(item.duration_months))
+                    || Number(item.duration_months) < 1 || Number(item.duration_months) > 600))
             )) || items.reduce((sum, item) => sum + Number(item.amount), 0) > 999999999999.99) {
                 inputsAreValid = false;
                 return;
             }
-            debtUpdates[group.dataset.debtId] = items;
+            debtUpdates[group.dataset.debtId] = { items };
         });
 
         if (!selectedIds.length || (!Object.keys(changes).length && !Object.keys(debtUpdates).length) || !inputsAreValid) {
@@ -744,6 +933,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     batchForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        if (isBatchSaving) return;
         const rows = tbody.querySelectorAll('tr');
         const items = [];
 
@@ -759,7 +949,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         const csrfToken = document.getElementById('csrf_token').value;
+        const itemsKey = JSON.stringify(items);
+        if (!pendingBatchRequest || pendingBatchRequest.itemsKey !== itemsKey) {
+            pendingBatchRequest = { itemsKey, requestId: createRequestId() };
+        }
+        const body = JSON.stringify({ items, request_id: pendingBatchRequest.requestId });
 
+        isBatchSaving = true;
+        saveBatchBtn.disabled = true;
+        addRowButtons.forEach(button => {
+            button.disabled = true;
+        });
         try {
             const res = await fetch('/users/batch-add', {
                 method: 'POST',
@@ -767,11 +967,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': csrfToken
                 },
-                body: JSON.stringify({ items: items })
+                body
             });
 
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.success) {
+                pendingBatchRequest = null;
                 await window.showAppAlert(`บันทึก ${data.saved_count} รายการเรียบร้อยแล้ว`, 'success');
                 window.location.reload();
             } else {
@@ -779,6 +980,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (err) {
             await window.showAppAlert('การเชื่อมต่อล้มเหลว กรุณาลองใหม่อีกครั้ง', 'danger');
+        } finally {
+            isBatchSaving = false;
+            saveBatchBtn.disabled = false;
+            addRowButtons.forEach(button => {
+                button.disabled = false;
+            });
         }
     });
 });

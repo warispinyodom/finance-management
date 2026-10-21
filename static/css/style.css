@@ -45,6 +45,29 @@ main.container {
     min-height: 40px;
 }
 
+.btn-icon-center {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    line-height: 1.2;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.btn-icon-center > i {
+    display: inline-grid;
+    flex: 0 0 auto;
+    width: 1.1em;
+    place-items: center;
+    margin: 0 !important;
+    line-height: 1;
+}
+
+.btn-icon-center > span {
+    display: block;
+}
+
 .btn-primary {
     --bs-btn-bg: #176b55;
     --bs-btn-border-color: #176b55;
@@ -147,6 +170,27 @@ main.container {
 
 .navbar .btn-outline-light {
     --bs-btn-hover-color: #173d32;
+}
+
+.navbar-account-actions {
+    min-height: 44px;
+}
+
+.navbar-logout-form {
+    display: flex;
+    align-items: center;
+}
+
+.navbar .navbar-icon-btn {
+    width: 44px;
+    padding-inline: 0;
+}
+
+@media (min-width: 992px) {
+    .navbar .navbar-icon-btn {
+        width: auto;
+        padding-inline: 0.75rem;
+    }
 }
 
 .account-avatar-wrap,
@@ -405,7 +449,7 @@ main.container {
 
 .debt-entry-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(180px, 240px) 44px;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 220px) minmax(120px, 150px) 44px;
     align-items: end;
     gap: 0.75rem;
     min-width: 0;
@@ -431,9 +475,157 @@ main.container {
     font-size: 16px;
 }
 
+.debt-schedule-help {
+    margin: 0.75rem 0 0;
+    color: var(--muted-color);
+    font-size: 0.78rem;
+}
+
+.debt-reminder-card {
+    overflow: hidden;
+    border: 1px solid #cfe4d9;
+    border-left: 4px solid var(--primary-color);
+    background: #fff;
+}
+
+.debt-reminder-card .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.15rem;
+    border-bottom: 1px solid #e6efe9;
+    background: #f5faf7;
+}
+
+.debt-reminder-eyebrow {
+    color: var(--primary-color);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+}
+
+.debt-reminder-count {
+    flex: 0 0 auto;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    background: #e2f1e9;
+    color: var(--primary-color);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.debt-reminder-list {
+    display: grid;
+}
+
+.debt-reminder-item {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1.15rem;
+    border-bottom: 1px solid #edf1ee;
+}
+
+.debt-reminder-item.is-due {
+    background: #fffaf0;
+}
+
+.debt-reminder-icon {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: 50%;
+    background: #e2f1e9;
+    color: var(--primary-color);
+}
+
+.debt-reminder-item.is-due .debt-reminder-icon {
+    background: #fff0d1;
+    color: #a96500;
+}
+
+.debt-reminder-info {
+    display: grid;
+    min-width: 0;
+    gap: 0.25rem;
+}
+
+.debt-reminder-info strong,
+.debt-reminder-info span {
+    overflow-wrap: anywhere;
+}
+
+.debt-reminder-info span,
+.debt-reminder-note {
+    color: var(--muted-color);
+    font-size: 0.78rem;
+}
+
+.debt-progress-summary {
+    display: grid;
+    max-width: 30rem;
+    gap: 0.25rem;
+    margin-top: 0.2rem;
+}
+
+.debt-progress-track {
+    width: 100%;
+    height: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e8eeea;
+}
+
+.debt-progress-track > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #45a47b, var(--primary-color));
+    transition: width 0.35s ease;
+}
+
+.debt-progress-track.is-overdue > span {
+    background: #d29135;
+}
+
+.debt-progress-summary small {
+    color: var(--muted-color);
+    font-size: 0.72rem;
+    line-height: 1.35;
+}
+
+.debt-progress-summary small strong {
+    color: var(--text-color);
+}
+
+.debt-reminder-amount {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.debt-reminder-note {
+    margin: 0;
+    padding: 0.75rem 1.15rem;
+    background: #fbfcfb;
+}
+
 .remove-debt-row-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 44px;
     height: 44px;
+}
+
+.debt-status-toggle {
+    min-width: 132px;
+}
+
+.remove-debt-row-btn > i {
+    line-height: 1;
 }
 
 .remove-debt-row-btn:disabled {
@@ -486,6 +678,26 @@ main.container {
     display: flex;
     justify-content: space-between;
     gap: 1rem;
+}
+
+.debt-history-item > div:first-child {
+    display: grid;
+    gap: 0.1rem;
+}
+
+.debt-history-item small {
+    color: var(--muted-color);
+    font-size: 0.72rem;
+}
+
+.debt-history-item-actions {
+    display: grid;
+    justify-items: end;
+    gap: 0.35rem;
+}
+
+.debt-history-item-actions button {
+    white-space: nowrap;
 }
 
 .debt-history-details li span {
@@ -914,6 +1126,25 @@ main.container {
         height: 34px;
     }
 
+    .navbar-account-actions {
+        gap: 0.4rem !important;
+    }
+
+    .navbar-account-actions > .account-avatar-wrap {
+        width: 36px;
+        height: 36px;
+    }
+
+    .navbar-account-actions .account-avatar,
+    .navbar-account-actions .account-avatar-fallback {
+        width: 36px;
+        height: 36px;
+    }
+
+    .navbar-account-actions .btn {
+        min-height: 42px;
+    }
+
     .dashboard-heading-mark {
         display: none;
     }
@@ -960,7 +1191,7 @@ main.container {
 
 @media (max-width: 768px) {
     .debt-entry-row:not(.debt-edit-row) {
-        grid-template-columns: minmax(0, 1fr) 44px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
     }
 
     .debt-entry-row:not(.debt-edit-row) .debt-name-field {
@@ -972,13 +1203,18 @@ main.container {
         grid-row: 2;
     }
 
-    .debt-entry-row:not(.debt-edit-row) .remove-debt-row-btn {
+    .debt-entry-row:not(.debt-edit-row) .debt-duration-field {
         grid-column: 2;
         grid-row: 2;
     }
 
+    .debt-entry-row:not(.debt-edit-row) .remove-debt-row-btn {
+        grid-column: 3;
+        grid-row: 2;
+    }
+
     .debt-edit-row {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) 44px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 44px;
         align-items: end;
         gap: 0.5rem;
         padding: 0.7rem;
@@ -986,6 +1222,22 @@ main.container {
 
     .debt-edit-row label {
         font-size: 0.74rem;
+    }
+
+    .debt-edit-row .debt-name-field {
+        grid-column: 1 / -1;
+    }
+
+    .debt-edit-row .debt-amount-field {
+        grid-column: 1;
+    }
+
+    .debt-edit-row .debt-duration-field {
+        grid-column: 2 / 4;
+    }
+
+    .debt-edit-row .remove-debt-row-btn {
+        grid-column: 4;
     }
 
     .debt-edit-items {
@@ -1025,6 +1277,50 @@ main.container {
         align-items: flex-start;
     }
 
+    .debt-reminder-card .card-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .debt-reminder-item {
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 0.55rem 0.7rem;
+        padding: 0.75rem;
+    }
+
+    .debt-reminder-info {
+        grid-column: 2;
+    }
+
+    .debt-reminder-amount {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .debt-reminder-item .btn {
+        grid-column: 1 / -1;
+        justify-self: stretch;
+    }
+
+    .debt-progress-summary {
+        max-width: none;
+    }
+
+    .debt-reminder-amount {
+        font-size: 0.88rem;
+    }
+
+    .debt-history-item {
+        flex-direction: column;
+    }
+
+    .debt-history-item-actions {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: space-between;
+    }
+
     .summary-card {
         min-height: 108px;
         padding: 0.75rem;
@@ -1060,7 +1356,7 @@ main.container {
         padding: 0.9rem 1rem !important;
     }
 
-    #add-row-btn {
+    .add-row-btn {
         width: 100%;
     }
 

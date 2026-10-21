@@ -1,4 +1,5 @@
 import base64
+import calendar
 import hashlib
 import os
 import secrets
@@ -22,6 +23,7 @@ if not app.secret_key:
     if os.getenv('VERCEL') == '1':
         raise RuntimeError('FLASK_SECRET_KEY must be configured in production')
     app.secret_key = secrets.token_hex(32)
+APP_TIMEZONE = datetime.timezone(datetime.timedelta(hours=7))
 
 # กำหนด Security Headers และ Cookie Properties ตาม OWASP Standard
 app.config.update(
@@ -647,12 +649,82 @@ def users_dashboard():
     transactions.sort(key=lambda x: x.get('date', ''), reverse=True)
     balance = total_income - total_expense
 
+    today = datetime.datetime.now(APP_TIMEZONE).date()
+    debt_reminders = []
+    for transaction in transactions:
+        debt_items = transaction.get('debt_items')
+        if not isinstance(debt_items, list):
+            continue
+        try:
+            start_date = datetime.date.fromisoformat(transaction.get('date', ''))
+        except (TypeError, ValueError):
+            continue
+        for index, debt in enumerate(debt_items):
+            if not isinstance(debt, dict):
+                continue
+            debt['item_id'] = debt.get('item_id') or uuid.uuid5(
+                uuid.NAMESPACE_URL, f"{transaction['id']}:{index}"
+            ).hex
+            duration_value = debt.get('duration_months')
+            try:
+                duration_decimal = Decimal(str(duration_value))
+                if (
+                    not duration_decimal.is_finite()
+                    or duration_decimal != duration_decimal.to_integral_value()
+                    or not 1 <= duration_decimal <= 600
+                ):
+                    continue
+                duration_months = int(duration_decimal)
+            except (InvalidOperation, TypeError, ValueError):
+                continue
+            debt['duration_months'] = duration_months
+            debt['estimated_end_date'] = add_months_to_date(start_date, duration_months).isoformat()
+            debt['plan_overdue'] = today > datetime.date.fromisoformat(debt['estimated_end_date'])
+            month_offset = (today.year - start_date.year) * 12 + today.month - start_date.month
+            current_due_date = add_months_to_date(start_date, max(0, month_offset))
+            elapsed_months = max(0, month_offset)
+            if month_offset > 0 and today < current_due_date:
+                elapsed_months -= 1
+            elapsed_months = min(duration_months, elapsed_months)
+            remaining_months = max(0, duration_months - elapsed_months)
+            progress_percent = round(elapsed_months / duration_months * 100)
+            if debt.get('is_paid', False):
+                progress_percent = 100
+            debt['monthly_due_date'] = current_due_date.isoformat()
+            debt['monthly_due'] = not debt.get('is_paid', False) and today >= current_due_date
+            debt['elapsed_months'] = elapsed_months
+            debt['remaining_months'] = remaining_months
+            debt['progress_percent'] = progress_percent
+            if not debt.get('is_paid', False):
+                debt_reminders.append({
+                    'transaction_id': transaction['id'],
+                    'item_id': debt['item_id'],
+                    'name': debt.get('name', 'หนี้'),
+                    'amount': debt.get('amount', 0),
+                    'duration_months': duration_months,
+                    'elapsed_months': elapsed_months,
+                    'remaining_months': remaining_months,
+                    'progress_percent': progress_percent,
+                    'estimated_end_date': debt['estimated_end_date'],
+                    'plan_overdue': debt['plan_overdue'],
+                    'monthly_due_date': debt['monthly_due_date'],
+                    'monthly_due': debt['monthly_due']
+                })
+
     return render_template('users.html', 
                            transactions=transactions, 
                            total_income=total_income, 
                            total_expense=total_expense, 
                            balance=balance,
+                           debt_reminders=debt_reminders,
                            email=session.get('email'))
+
+def add_months_to_date(date_value, months):
+    month_index = date_value.month - 1 + months
+    year = date_value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(date_value.day, calendar.monthrange(year, month)[1])
+    return datetime.date(year, month, day)
 
 # API สำหรับบันทึกแบบหลายรายการพร้อมกัน (Batch Add)
 @app.route('/users/batch-add', methods=['POST'])
@@ -666,12 +738,22 @@ def batch_add_transactions():
     user_id = session['user_id']
     payload = request.get_json(silent=True) or {}
     items = payload.get('items', [])
+    request_id = payload.get('request_id')
+    if request_id is None:
+        request_id = uuid.uuid4().hex
+    elif not isinstance(request_id, str):
+        return jsonify({"success": False, "message": "รหัสคำขอไม่ถูกต้อง"}), 400
+    else:
+        try:
+            request_id = uuid.UUID(request_id).hex
+        except ValueError:
+            return jsonify({"success": False, "message": "รหัสคำขอไม่ถูกต้อง"}), 400
 
     if not items or not isinstance(items, list):
         return jsonify({"success": False, "message": "ข้อมูลไม่ถูกต้อง"}), 400
 
     updates = {}
-    for item in items:
+    for index, item in enumerate(items):
         if not isinstance(item, dict):
             return jsonify({"success": False, "message": "ข้อมูลรายการไม่ถูกต้อง"}), 400
 
@@ -703,7 +785,7 @@ def batch_add_transactions():
             "payment_method": payment_method.strip() or 'เงินสด',
             "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
         }
-        updates[uuid.uuid4().hex] = payload
+        updates[f"{request_id}_{index}"] = payload
 
     try:
         response = requests.patch(
@@ -721,13 +803,18 @@ def batch_add_transactions():
 
     return jsonify({"success": True, "saved_count": len(updates)})
 
-def validate_debt_items(debt_items):
+def validate_debt_items(debt_items, require_duration=False, existing_items=None):
     if not isinstance(debt_items, list) or not 2 <= len(debt_items) <= 50:
         return None, None, "กรุณากรอกรายการหนี้อย่างน้อย 2 รายการ (สูงสุด 50 รายการ)"
 
     validated_items = []
+    existing_by_id = {
+        item.get('item_id'): item for item in existing_items or []
+        if isinstance(item, dict) and isinstance(item.get('item_id'), str)
+    }
     total = Decimal('0')
     maximum_amount = Decimal('999999999999.99')
+    submitted_item_ids = set()
     for item in debt_items:
         if not isinstance(item, dict):
             return None, None, "ข้อมูลรายการหนี้ไม่ถูกต้อง"
@@ -740,12 +827,66 @@ def validate_debt_items(debt_items):
                 raise InvalidOperation
         except (InvalidOperation, ValueError):
             return None, None, "จำนวนเงินหนี้ต้องมากกว่า 0 และมีทศนิยมไม่เกิน 2 ตำแหน่ง"
+        existing = existing_by_id.get(item.get('item_id'))
+        duration_value = item.get('duration_months')
+        if duration_value in (None, ''):
+            if require_duration or existing is None:
+                return None, None, "กรุณาระบุระยะเวลาหนี้ 1–600 เดือน"
+            duration_months = existing.get('duration_months')
+        else:
+            try:
+                if isinstance(duration_value, bool):
+                    raise ValueError
+                duration_decimal = Decimal(str(duration_value))
+                if (
+                    not duration_decimal.is_finite()
+                    or duration_decimal != duration_decimal.to_integral_value()
+                    or not 1 <= duration_decimal <= 600
+                ):
+                    raise ValueError
+                duration_months = int(duration_decimal)
+            except (InvalidOperation, TypeError, ValueError):
+                return None, None, "ระยะเวลาหนี้ต้องเป็นจำนวนเต็ม 1–600 เดือน"
         total += amount
         if total > maximum_amount:
             return None, None, "ยอดหนี้รวมสูงเกินจำนวนที่ระบบรองรับ"
-        validated_items.append({"name": name.strip(), "amount": float(amount)})
+        validated_item = {
+            "item_id": existing.get('item_id') if existing else None,
+            "name": name.strip(),
+            "amount": float(amount),
+            "duration_months": duration_months,
+            "is_paid": bool(existing.get('is_paid', False)) if existing else False,
+            "paid_at": existing.get('paid_at') if existing else None
+        }
+        submitted_item_id = item.get('item_id')
+        if isinstance(submitted_item_id, str) and submitted_item_id:
+            if submitted_item_id in submitted_item_ids:
+                return None, None, "พบรหัสรายการหนี้ซ้ำ กรุณารีเฟรชหน้าแล้วลองใหม่"
+            submitted_item_ids.add(submitted_item_id)
+        if existing is None:
+            try:
+                validated_item['item_id'] = uuid.UUID(submitted_item_id).hex
+            except (ValueError, TypeError, AttributeError):
+                validated_item['item_id'] = uuid.uuid4().hex
+        validated_items.append(validated_item)
 
     return validated_items, total, None
+
+
+def debt_items_with_stable_ids(items, transaction_id):
+    if not isinstance(items, list):
+        return items
+    result = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            result.append(item)
+            continue
+        normalized = dict(item)
+        normalized['item_id'] = normalized.get('item_id') or uuid.uuid5(
+            uuid.NAMESPACE_URL, f"{transaction_id}:{index}"
+        ).hex
+        result.append(normalized)
+    return result
 
 
 def validate_debt_date(date_str):
@@ -772,11 +913,25 @@ def add_debt_transaction():
     date_str = payload.get('date', datetime.date.today().isoformat())
     if not validate_debt_date(date_str):
         return jsonify({"success": False, "message": "วันที่ไม่ถูกต้อง"}), 400
-    validated_items, total, error = validate_debt_items(payload.get('items'))
+    request_id = payload.get('request_id')
+    if request_id is None:
+        request_id = uuid.uuid4().hex
+    elif not isinstance(request_id, str):
+        return jsonify({"success": False, "message": "รหัสคำขอไม่ถูกต้อง"}), 400
+    else:
+        try:
+            request_id = uuid.UUID(request_id).hex
+        except ValueError:
+            return jsonify({"success": False, "message": "รหัสคำขอไม่ถูกต้อง"}), 400
+    validated_items, total, error = validate_debt_items(payload.get('items'), require_duration=True)
     if error:
         return jsonify({"success": False, "message": error}), 400
+    for index, debt in enumerate(validated_items):
+        debt['item_id'] = uuid.uuid5(
+            uuid.NAMESPACE_URL, f"{request_id}:{index}"
+        ).hex
 
-    transaction_id = uuid.uuid4().hex
+    transaction_id = request_id
     transaction = {
         "type": "expense",
         "category": "หนี้สิน",
@@ -818,10 +973,6 @@ def update_debt_transaction(tx_id):
     date_str = payload.get('date')
     if not validate_debt_date(date_str):
         return jsonify({"success": False, "message": "วันที่ไม่ถูกต้อง"}), 400
-    validated_items, total, error = validate_debt_items(payload.get('items'))
-    if error:
-        return jsonify({"success": False, "message": error}), 400
-
     user_id = session['user_id']
     transaction_url = (
         f"{FIREBASE_DB_URL}/transactions/{user_id}/{quote(tx_id, safe='')}.json"
@@ -846,6 +997,15 @@ def update_debt_transaction(tx_id):
     if not isinstance(current_transaction, dict) or not current_transaction.get('debt_items'):
         return jsonify({"success": False, "message": "ไม่พบรายการหนี้หลายทางที่ต้องการแก้ไข"}), 404
 
+    validated_items, total, error = validate_debt_items(
+        payload.get('items'),
+        existing_items=debt_items_with_stable_ids(
+            current_transaction.get('debt_items'), tx_id
+        )
+    )
+    if error:
+        return jsonify({"success": False, "message": error}), 400
+
     updates = {
         "type": "expense",
         "category": "หนี้สิน",
@@ -868,6 +1028,77 @@ def update_debt_transaction(tx_id):
         return jsonify({"success": False, "message": "บันทึกการแก้ไขไม่สำเร็จ กรุณาลองอีกครั้ง"}), 502
 
     return jsonify({"success": True, "amount": float(total)})
+
+
+@app.route('/users/debt-status/<tx_id>/<item_id>', methods=['POST'])
+def update_debt_item_status(tx_id, item_id):
+    if not is_authenticated():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    if not verify_csrf():
+        return jsonify({"success": False, "message": "CSRF verification failed"}), 403
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get('is_paid'), bool):
+        return jsonify({"success": False, "message": "สถานะการชำระไม่ถูกต้อง"}), 400
+
+    transaction_url = (
+        f"{FIREBASE_DB_URL}/transactions/{session['user_id']}/{quote(tx_id, safe='')}.json"
+        f"?auth={FIREBASE_DB_SECRET}"
+    )
+    try:
+        current_response = requests.get(transaction_url, timeout=10)
+    except requests.RequestException:
+        app.logger.exception('Firebase debt status lookup failed')
+        return jsonify({"success": False, "message": "เชื่อมต่อฐานข้อมูลไม่สำเร็จ กรุณาลองใหม่"}), 502
+    if not current_response.ok:
+        app.logger.error('Firebase debt status lookup rejected: status=%s body=%s', current_response.status_code, current_response.text)
+        return jsonify({"success": False, "message": "ตรวจสอบรายการหนี้ไม่สำเร็จ กรุณาลองใหม่"}), 502
+    try:
+        transaction = current_response.json()
+    except ValueError:
+        app.logger.error('Firebase debt status lookup returned invalid JSON')
+        return jsonify({"success": False, "message": "ตรวจสอบข้อมูลรายการหนี้ไม่สำเร็จ กรุณาลองใหม่"}), 502
+
+    debt_items = transaction.get('debt_items') if isinstance(transaction, dict) else None
+    if not isinstance(debt_items, list):
+        return jsonify({"success": False, "message": "ไม่พบรายการหนี้ที่ต้องการแก้ไข"}), 404
+    target_index = None
+    stable_id = None
+    for index, item in enumerate(debt_items):
+        if not isinstance(item, dict):
+            continue
+        current_item_id = item.get('item_id') or uuid.uuid5(
+            uuid.NAMESPACE_URL, f"{tx_id}:{index}"
+        ).hex
+        if current_item_id == item_id:
+            target_index = index
+            stable_id = current_item_id
+            break
+    if target_index is None:
+        return jsonify({"success": False, "message": "ไม่พบรายการหนี้ที่ต้องการแก้ไข"}), 404
+
+    paid_at = (
+        datetime.datetime.now(APP_TIMEZONE).date().isoformat()
+        if payload['is_paid'] else None
+    )
+    item_status_url = (
+        f"{FIREBASE_DB_URL}/transactions/{session['user_id']}/{quote(tx_id, safe='')}"
+        f"/debt_items/{target_index}.json?auth={FIREBASE_DB_SECRET}"
+    )
+    try:
+        response = requests.patch(
+            item_status_url,
+            json={"item_id": stable_id, "is_paid": payload['is_paid'], "paid_at": paid_at},
+            timeout=10
+        )
+    except requests.RequestException:
+        app.logger.exception('Firebase debt status update failed')
+        return jsonify({"success": False, "message": "เชื่อมต่อฐานข้อมูลไม่สำเร็จ กรุณาลองใหม่"}), 502
+    if not response.ok:
+        app.logger.error('Firebase debt status update rejected: status=%s body=%s', response.status_code, response.text)
+        return jsonify({"success": False, "message": "บันทึกสถานะหนี้ไม่สำเร็จ กรุณาลองอีกครั้ง"}), 502
+    return jsonify({"success": True, "is_paid": payload['is_paid'], "paid_at": paid_at})
+
 
 # API สำหรับแก้ไขหลายรายการพร้อมกัน (Batch Update)
 @app.route('/users/batch-update', methods=['POST'])
@@ -944,6 +1175,7 @@ def batch_update_transactions():
         return jsonify({"success": False, "message": "ไม่พบรายการบางส่วนที่เลือก กรุณารีเฟรชหน้าแล้วลองใหม่"}), 404
 
     updates = {}
+    updated_ids = set()
     for tx_id in transaction_ids:
         current = current_transactions[tx_id]
         is_debt_group = bool(current.get('debt_items'))
@@ -956,7 +1188,12 @@ def batch_update_transactions():
             debt_payload = debt_updates[tx_id]
             if not isinstance(debt_payload, dict):
                 return jsonify({"success": False, "message": "ข้อมูลชุดหนี้ที่แก้ไขไม่ถูกต้อง"}), 400
-            validated_items, total, error = validate_debt_items(debt_payload.get('items'))
+            validated_items, total, error = validate_debt_items(
+                debt_payload.get('items'),
+                existing_items=debt_items_with_stable_ids(
+                    current.get('debt_items'), tx_id
+                )
+            )
             if error:
                 return jsonify({"success": False, "message": error}), 400
             transaction_changes.update({
@@ -971,7 +1208,11 @@ def batch_update_transactions():
             return jsonify({"success": False, "message": "รายการที่เลือกไม่ใช่ชุดหนี้หลายทาง"}), 400
 
         if transaction_changes:
-            updates[tx_id] = transaction_changes
+            updates.update({
+                f"{tx_id}/{field}": value
+                for field, value in transaction_changes.items()
+            })
+            updated_ids.add(tx_id)
 
     if not updates:
         return jsonify({"success": False, "message": "ไม่มีฟิลด์ที่นำไปใช้กับรายการที่เลือก"}), 400
@@ -995,7 +1236,7 @@ def batch_update_transactions():
         message = f"ฐานข้อมูลปฏิเสธการแก้ไข: {error_message}" if error_message else "บันทึกการแก้ไขไม่สำเร็จ กรุณาลองอีกครั้ง"
         return jsonify({"success": False, "message": message}), 502
 
-    return jsonify({"success": True, "updated_count": len(updates)})
+    return jsonify({"success": True, "updated_count": len(updated_ids)})
 
 @app.route('/users/batch-delete', methods=['POST'])
 def batch_delete_transactions():

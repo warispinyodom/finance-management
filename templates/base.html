@@ -9,7 +9,7 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='9') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='13') }}">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
@@ -19,7 +19,7 @@
                 <span>Finance Manager</span>
             </a>
             {% if session.get('user_id') %}
-            <div class="d-flex align-items-center gap-2 ms-auto">
+            <div class="navbar-account-actions d-flex align-items-center gap-2 ms-auto">
                 <span class="account-avatar-wrap" aria-label="รูปโปรไฟล์">
                     {% if session.get('photo_file_id') %}
                         <img class="account-avatar" src="{{ url_for('profile_photo', v=session.get('photo_updated_at')) }}" alt="" onerror="this.hidden=true; this.nextElementSibling.hidden=false">
@@ -29,13 +29,13 @@
                 <span class="text-white me-2 d-none d-md-inline small text-truncate account-email">
                     {{ session.get('display_name') or session.get('email') }}
                 </span>
-                <a href="{{ url_for('profile') }}" class="btn btn-outline-light btn-sm fw-medium" aria-label="จัดการโปรไฟล์" title="จัดการโปรไฟล์">
-                    <i class="fa-solid fa-user-gear"></i><span class="d-none d-lg-inline ms-2">โปรไฟล์</span>
+                <a href="{{ url_for('profile') }}" class="btn btn-outline-light btn-sm fw-medium btn-icon-center navbar-icon-btn" aria-label="จัดการโปรไฟล์" title="จัดการโปรไฟล์">
+                    <i class="fa-solid fa-user-gear" aria-hidden="true"></i><span class="d-none d-lg-inline">โปรไฟล์</span>
                 </a>
-                <form method="POST" action="{{ url_for('logout') }}" class="m-0">
+                <form method="POST" action="{{ url_for('logout') }}" class="navbar-logout-form m-0">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-light btn-sm fw-medium text-primary" aria-label="ออกจากระบบ" title="ออกจากระบบ">
-                        <i class="fa-solid fa-right-from-bracket"></i><span class="d-none d-sm-inline ms-1">ออกจากระบบ</span>
+                    <button type="submit" class="btn btn-light btn-sm fw-medium text-primary btn-icon-center" aria-label="ออกจากระบบ" title="ออกจากระบบ">
+                        <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i><span class="d-none d-sm-inline">ออกจากระบบ</span>
                     </button>
                 </form>
             </div>
